@@ -1,15 +1,27 @@
-<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px"><a href="https://rugplay.com">Rugplay.com</a> - the fake crypto simulator.</h1>
+<img style="width: 128px; height: 128px" src="website/static/favicon.svg" /><h1 style="font-size: 48px">Rugplay: Stock Market Edition</h1>
 
-[Privacy Policy](https://rugplay.com/legal/privacy) | [Terms of Service](https://rugplay.com/legal/terms) | [License](LICENSE) | [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)
+A fork of [Rugplay](https://github.com/outpoot/rugplay), the fake crypto simulator, that adds a **stock market**, **player-founded startups** and an **AI crowd** that trades like the mass of real people.
+
+> 🚧 **Work in progress.** The stock market features are being planned. See the full plan: [docs/STOCK_MARKET_PLAN.md](docs/STOCK_MARKET_PLAN.md)
 
 ## About
 
-Rugplay is a realistic cryptocurrency trading simulator that lets you experience the risks and mechanics of decentralized exchanges without real financial consequences. Create coins, trade with liquidity pools, and learn about "rug pulls" in a... relatively safe environment :)
+Rugplay lets you experience crypto trading, liquidity pools and "rug pulls" without real money. This fork puts a **real-ish stock market** next to it: companies with revenue, profit and cash, where hype alone isn't enough.
 
-## Features
-- 🪙 Create coins
-- 🟢 Buy coins
-- 🔴 Sell coins
+The goal is to be **fun and educational** (mainly for teens/students) without lectures: bubbles, crashes and hype-vs-fundamentals happen on their own, and you learn by playing (and getting burned).
+
+## Planned features
+
+- 🏢 **Found a startup:** pick a sector, write a pitch, set a valuation and raise money from players and the AI crowd
+- 📈 **IPO + stock market:** grow big enough and go public on an order book
+- 📊 **Daily earnings:** every in-game "quarter" (1 real day) your company reports revenue and profit
+- 📣 **CEO announcements:** convince the market, but lies hurt your credibility
+- 🤖 **AI crowd:** three local AI agents (retail, fund, trader) see different info, and their buy/sell probabilities become the volume of thousands of "people"
+- 🌡️ **Sentiment bar + "explain the move":** see how each crowd feels and why the price moved
+- 🪙 **Crypto stays:** coins keep the AMM; the crowd can trade them too (admin-configurable)
+
+## Original Rugplay features
+- 🪙 Create, buy and sell coins
 - ⚖️ Predict on questions (similar to Polymarket)
 - 🎲 Play arcade games
 - 📊 View a Treemap graph of the entire market
@@ -33,7 +45,7 @@ Before you begin, make sure you have the following installed:
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/outpoot/rugplay.git
+   git clone https://github.com/combustion-robotics/rugplay.git
    cd rugplay
    ```
 
@@ -186,6 +198,10 @@ Before you begin, make sure you have the following installed:
     cd website/websocket
     bun run src/main.ts
     ```
+
+## Credits
+
+Based on [Rugplay](https://github.com/outpoot/rugplay) by outpoot ([rugplay.com](https://rugplay.com), [YouTube video](https://www.youtube.com/watch?v=nRUkvPMphRc)).
 
 ## License
 
