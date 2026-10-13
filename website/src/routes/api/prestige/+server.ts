@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user, userPortfolio, notifications, coin } from '$lib/server/db/schema';
+import { user, userPortfolio, notifications, coin, companyHolding, stockOrder } from '$lib/server/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { formatValue, getPrestigeCost, getPrestigeName } from '$lib/utils';
@@ -41,6 +41,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         if (currentCashBalance < prestigeCost) {
             throw error(400, `Insufficient cash funds for prestige. Need ${formatValue(prestigeCost)} cash, have ${formatValue(currentCashBalance)} cash. Coin holdings cannot be used for prestige costs.`);
         }
+
+        const [stake] = await tx.select({ id: companyHolding.companyId }).from(companyHolding).where(eq(companyHolding.userId, userId)).limit(1);
+        const [openOrder] = await tx.select({ id: stockOrder.id }).from(stockOrder).where(eq(stockOrder.userId, userId)).limit(1);
+        // shares and order cash would survive the reset otherwise
+        if (stake || openOrder) throw error(400, 'Sell your company shares and cancel your stock orders before you prestige.');
 
         const { totalSaleValue, coinsSold } = await liquidateHoldings(tx, userId);
         const warningMessage = coinsSold > 0

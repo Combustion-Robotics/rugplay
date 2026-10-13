@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { company, companyEarnings, companyHolding, sectorCondition } from '$lib/server/db/schema';
-import { and, desc, eq, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, lte, ne, sql } from 'drizzle-orm';
 import {
 	COMPANY_QUARTER_MS,
 	COMPANY_SECTORS,
@@ -11,6 +11,7 @@ import {
 	SECTOR_MULTIPLIER_MIN
 } from '$lib/data/constants';
 import { createNotification } from '$lib/server/notification';
+import { cancelAllOrders } from '$lib/server/orderbook';
 
 export function computeQuarter(
 	raised: number,
@@ -30,6 +31,17 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 	const cutoff = new Date(now.getTime() - COMPANY_QUARTER_MS);
 	const nextQuarterAt = new Date(now.getTime() + COMPANY_QUARTER_MS);
 	let closed = 0;
+	// IPO: a round that ended with at least one investor goes public at the round price
+	await db
+		.update(company)
+		.set({ status: 'PUBLIC' })
+		.where(
+			and(
+				eq(company.status, 'PRIVATE'),
+				lte(company.roundEndsAt, now),
+				gt(company.roundSharesSold, 0)
+			)
+		);
 	await db
 		.insert(sectorCondition)
 		.values(COMPANY_SECTORS.map((sector) => ({ sector })))
@@ -70,8 +82,7 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 						status: company.status,
 						spendingLevel: company.spendingLevel,
 						treasuryCash: company.treasuryCash,
-						sharePrice: company.sharePrice,
-						roundSharesSold: company.roundSharesSold,
+						raisedCash: company.raisedCash,
 						nextQuarterAt: company.nextQuarterAt
 					})
 					.from(company)
@@ -81,8 +92,7 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 				// re-check under the lock: another replica or an admin call may have just closed it
 				if (!c || c.status === 'BANKRUPT' || (!force && c.nextQuarterAt > now)) return null;
 
-				// shortcut: raised = round shares × round price; the IPO phase must store raised cash before sharePrice starts moving
-				const raised = c.roundSharesSold * Number(c.sharePrice);
+				const raised = Number(c.raisedCash);
 				const sectorMultiplier = sectors.get(c.sector) ?? 1;
 				const r = computeQuarter(raised, c.spendingLevel, sectorMultiplier);
 				const profit = r.profit.toFixed(8);
@@ -105,6 +115,7 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 					profit,
 					cashAfter: cashAfter.toFixed(8)
 				});
+				if (isBankrupt) await cancelAllOrders(tx, id);
 				await tx
 					.update(company)
 					.set(

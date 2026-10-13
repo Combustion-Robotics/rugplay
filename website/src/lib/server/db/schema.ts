@@ -11,6 +11,7 @@ export const seasonTrophyTierEnum = pgEnum('season_trophy_tier', ['CHAMPION', 'R
 export const companySectorEnum = pgEnum('company_sector', COMPANY_SECTORS);
 export const companyStatusEnum = pgEnum('company_status', ['PRIVATE', 'PUBLIC', 'BANKRUPT']);
 export const companySpendingEnum = pgEnum('company_spending', COMPANY_SPENDING_LEVELS);
+export const stockOrderSideEnum = pgEnum('stock_order_side', ['BUY', 'SELL']);
 
 export const user = pgTable("user", {
 	id: serial("id").primaryKey(),
@@ -471,6 +472,7 @@ export const company = pgTable("company", {
 	roundSharesSold: integer("round_shares_sold").notNull().default(0),
 	roundEndsAt: timestamp("round_ends_at", { withTimezone: true }).notNull(),
 	treasuryCash: decimal("treasury_cash", { precision: 30, scale: 8 }).notNull().default("0.00000000"),
+	raisedCash: decimal("raised_cash", { precision: 30, scale: 8 }).notNull().default("0.00000000"), // what round investors paid; Phase 2 spends from this
 	spendingLevel: companySpendingEnum("spending_level").notNull().default("MEDIUM"),
 	nextQuarterAt: timestamp("next_quarter_at", { withTimezone: true }).notNull().defaultNow(),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -487,6 +489,7 @@ export const companyHolding = pgTable("company_holding", {
 }, (table) => ({
 	pk: primaryKey({ columns: [table.userId, table.companyId] }),
 	companySharesIdx: index("company_holding_company_id_shares_idx").on(table.companyId, table.shares.desc()),
+	sharesNonNegative: check("company_holding_shares_non_negative", sql`shares >= 0`),
 }));
 
 export const companyEarnings = pgTable("company_earnings", {
@@ -508,3 +511,31 @@ export const sectorCondition = pgTable("sector_condition", {
 	multiplier: decimal("multiplier", { precision: 3, scale: 2 }).notNull().default("1.00"),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const stockOrder = pgTable("stock_order", {
+	id: serial("id").primaryKey(), // also the time priority (inserts are serialized by the company row lock)
+	companyId: integer("company_id").notNull().references(() => company.id, { onDelete: "cascade" }),
+	userId: integer("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+	side: stockOrderSideEnum("side").notNull(),
+	price: decimal("price", { precision: 30, scale: 8 }).notNull(),
+	shares: integer("shares").notNull(), // still open; a BUY row holds shares × price of the buyer's cash
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	bookIdx: index("stock_order_book_idx").on(table.companyId, table.side, table.price),
+	userIdIdx: index("stock_order_user_id_idx").on(table.userId),
+	sharesPositive: check("stock_order_shares_positive", sql`shares > 0`),
+	pricePositive: check("stock_order_price_positive", sql`price > 0`),
+}));
+
+export const stockTrade = pgTable("stock_trade", {
+	id: serial("id").primaryKey(),
+	companyId: integer("company_id").notNull().references(() => company.id, { onDelete: "cascade" }),
+	buyerId: integer("buyer_id").references(() => user.id, { onDelete: "set null" }),
+	sellerId: integer("seller_id").references(() => user.id, { onDelete: "set null" }),
+	takerSide: stockOrderSideEnum("taker_side").notNull(),
+	price: decimal("price", { precision: 30, scale: 8 }).notNull(),
+	shares: integer("shares").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	companyCreatedAtIdx: index("stock_trade_company_id_created_at_idx").on(table.companyId, table.createdAt),
+}));

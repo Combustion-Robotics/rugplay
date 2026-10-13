@@ -106,6 +106,13 @@
       "when": 1791919155297,
       "tag": "0014_company_earnings",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791920205990,
+      "tag": "0015_stock_market",
+      "breakpoints": true
     }
   ]
 }

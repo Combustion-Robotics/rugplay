@@ -2,6 +2,7 @@ import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { user, userPortfolio, coin } from '$lib/server/db/schema';
+import { getUserStocks } from '$lib/server/orderbook';
 import { eq } from 'drizzle-orm';
 
 export async function GET({ request }) {
@@ -13,7 +14,7 @@ export async function GET({ request }) {
 
     const userId = Number(session.user.id);
 
-    const [userData, holdings] = await Promise.all([
+    const [userData, holdings, stocks] = await Promise.all([
         db.select({ baseCurrencyBalance: user.baseCurrencyBalance })
             .from(user)
             .where(eq(user.id, userId))
@@ -25,7 +26,9 @@ export async function GET({ request }) {
         })
             .from(userPortfolio)
             .innerJoin(coin, eq(userPortfolio.coinId, coin.id))
-            .where(eq(userPortfolio.userId, userId))
+            .where(eq(userPortfolio.userId, userId)),
+
+        getUserStocks(userId)
     ]);
 
     if (!userData[0]) {
@@ -45,7 +48,8 @@ export async function GET({ request }) {
     return json({
         baseCurrencyBalance,
         totalCoinValue,
-        totalValue: baseCurrencyBalance + totalCoinValue,
+        totalStockValue: stocks.totalStockValue,
+        totalValue: baseCurrencyBalance + totalCoinValue + stocks.totalStockValue,
         currency: '$'
     });
 }

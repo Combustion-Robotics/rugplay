@@ -48,3 +48,10 @@ export const SECTOR_MULTIPLIER_MIN = 0.5;
 export const SECTOR_MULTIPLIER_MAX = 1.5;
 export const SECTOR_DRIFT_STEP = 0.15; // max random move per quarter
 export const SECTOR_DRIFT_PULL = 0.1; // share of the gap to 1.00 closed each quarter
+
+// STOCK TRADING (order book; fee = SWAP_FEE_RATE, paid by the seller, burned)
+export const COMPANY_VESTING_MS = 14 * 24 * 60 * 60 * 1000; // founder shares unlock linearly from round end
+export const STOCK_MARKET_BAND = 0.2; // market orders only fill within ±20% of the last price
+export const STOCK_MAX_PRICE = 1_000_000;
+export const STOCK_MAX_FILLS = 100; // resting orders one incoming order can hit
+export const STOCK_BOOK_DEPTH = 10;

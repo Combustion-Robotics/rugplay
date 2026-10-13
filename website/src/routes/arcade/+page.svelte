@@ -36,7 +36,7 @@
 					? {
 							...data,
 							baseCurrencyBalance: newBalance,
-							totalValue: newBalance + data.totalCoinValue
+							totalValue: newBalance + data.totalCoinValue + (data.totalStockValue ?? 0)
 						}
 					: null
 			);

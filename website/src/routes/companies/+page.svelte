@@ -67,6 +67,8 @@
 								<Badge variant="secondary" class="text-xs">{c.sector}</Badge>
 								{#if c.status === 'BANKRUPT'}
 									<Badge variant="destructive" class="text-xs">Bankrupt</Badge>
+								{:else if c.status === 'PUBLIC'}
+									<Badge variant="outline" class="text-xs">Public</Badge>
 								{/if}
 							</div>
 						</div>
@@ -92,7 +94,11 @@
 								<div class="text-muted-foreground flex justify-between text-xs">
 									<span>{Math.floor((c.roundSharesSold / c.roundShares) * 100)}% funded</span>
 									<span>
-										{isOpen(c) ? `Ends in ${formatTimeUntil(c.roundEndsAt)}` : 'Round closed'}
+										{isOpen(c)
+											? `Ends in ${formatTimeUntil(c.roundEndsAt)}`
+											: c.status === 'PUBLIC'
+												? 'Trading'
+												: 'Round closed'}
 									</span>
 								</div>
 							</div>

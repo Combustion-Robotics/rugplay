@@ -395,6 +395,11 @@
 									<span class="font-mono" style="color: #00ff0d">${formatCurrency($PORTFOLIO_SUMMARY.totalCoinValue)}</span
 									>
 								</div>
+								<div class="flex justify-between">
+									<span>Stocks:</span>
+									<span class="font-mono" style="color: #00ff0d">${formatCurrency($PORTFOLIO_SUMMARY.totalStockValue ?? 0)}</span
+									>
+								</div>
 								{#if $GEMS_BALANCE !== null}
 									<div class="flex justify-between">
 										<span>Gems:</span>

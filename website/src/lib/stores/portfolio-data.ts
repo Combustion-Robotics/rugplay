@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 export interface PortfolioSummary {
     baseCurrencyBalance: number;
     totalCoinValue: number;
+    totalStockValue: number;
     totalValue: number;
     currency: string;
 }
@@ -18,6 +19,15 @@ export interface PortfolioData extends PortfolioSummary {
         icon?: string;
         portfolioPercent: number;
     }>;
+    stockHoldings: Array<{
+        symbol: string;
+        name: string;
+        status: string;
+        shares: number;
+        price: number;
+        value: number;
+    }>;
+    orderCash: number;
 }
 
 export const PORTFOLIO_SUMMARY = writable<PortfolioSummary | null>(null);
@@ -47,6 +57,7 @@ export async function fetchPortfolioData() {
             PORTFOLIO_SUMMARY.set({
                 baseCurrencyBalance: data.baseCurrencyBalance,
                 totalCoinValue: data.totalCoinValue,
+                totalStockValue: data.totalStockValue,
                 totalValue: data.totalValue,
                 currency: data.currency
             });

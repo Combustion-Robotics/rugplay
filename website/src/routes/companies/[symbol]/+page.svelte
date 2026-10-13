@@ -10,6 +10,7 @@
 	import DataTable from '$lib/components/self/DataTable.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
 	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
+	import StockMarket from '$lib/components/self/StockMarket.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { Loading03Icon } from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
@@ -71,7 +72,7 @@
 	let isFounder = $derived($USER_DATA ? Number($USER_DATA.id) === company.founderId : false);
 	let isBankrupt = $derived(company.status === 'BANKRUPT');
 	let roundEnded = $derived(new Date(company.roundEndsAt) <= new Date());
-	let raised = $derived(company.roundSharesSold * company.sharePrice);
+	let raised = $derived(company.raisedCash);
 	const budget = (l: keyof typeof COMPANY_SPENDING) => raised * COMPANY_SPENDING[l].rate;
 	const money = (v: number) => (v < 0 ? '-' : '') + formatValue(Math.abs(v));
 	const sign = (v: number) => (v >= 0 ? '+' : '') + money(v);
@@ -248,6 +249,10 @@
 		</Alert.Root>
 	{/if}
 
+	{#if company.status === 'PUBLIC'}
+		<StockMarket {company} onTrade={refresh} />
+	{/if}
+
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<Card.Root class="lg:col-span-2">
 			<Card.Header>
@@ -269,14 +274,16 @@
 						<span class="font-mono">${formatPrice(company.sharePrice)}</span>
 					</div>
 					<div class="flex justify-between">
-						<span class="text-muted-foreground">Valuation</span>
+						<span class="text-muted-foreground">
+							{company.status === 'PUBLIC' ? 'Market cap' : 'Valuation'}
+						</span>
 						<span class="font-mono">
 							{formatMarketCap(company.sharePrice * COMPANY_TOTAL_SHARES)}
 						</span>
 					</div>
 					<div class="flex justify-between">
 						<span class="text-muted-foreground">Raised</span>
-						<span class="font-mono">{formatValue(company.treasuryCash)}</span>
+						<span class="font-mono">{formatValue(raised)}</span>
 					</div>
 				</div>
 
@@ -291,6 +298,12 @@
 						>
 					</div>
 				</div>
+
+				{#if company.status === 'PRIVATE' && roundEnded && company.roundSharesSold > 0}
+					<p class="text-muted-foreground text-center text-sm">
+						Going public soon. Trading opens within 5 minutes.
+					</p>
+				{/if}
 
 				{#if isOpen}
 					{#if !$USER_DATA}
@@ -330,8 +343,7 @@
 								{/if}
 							</Button>
 							<p class="text-muted-foreground text-xs">
-								Invested money is locked until the company goes public and doesn't count in your
-								score.
+								You can sell your shares once the company goes public.
 							</p>
 						</form>
 					{/if}

@@ -146,6 +146,52 @@
 		}
 	]);
 
+	let stocksColumns = [
+		{
+			key: 'symbol',
+			label: 'Company',
+			class: 'w-[30%] min-w-[120px]',
+			render: (_: any, row: any) => ({
+				component: 'coin',
+				icon: null,
+				symbol: row.symbol,
+				name: row.name,
+				size: 6
+			})
+		},
+		{
+			key: 'shares',
+			label: 'Shares',
+			class: 'font-mono',
+			sortable: true,
+			render: (value: number) => formatQuantity(value)
+		},
+		{
+			key: 'price',
+			label: 'Price',
+			class: 'font-mono',
+			sortable: true,
+			render: (value: number) => formatValue(value)
+		},
+		{
+			key: 'value',
+			label: 'Value',
+			class: 'font-mono font-medium',
+			sortable: true,
+			defaultSort: true,
+			render: (value: number, row: any) => (row.status === 'PUBLIC' ? formatValue(value) : '—')
+		},
+		{
+			key: 'status',
+			label: 'Status',
+			render: (value: string) => ({
+				component: 'badge',
+				variant: value === 'BANKRUPT' ? 'destructive' : 'outline',
+				text: value === 'PUBLIC' ? 'Public' : value === 'PRIVATE' ? 'Private' : 'Bankrupt'
+			})
+		}
+	];
+
 	// Column configurations for transactions table
 	let transactionsColumns = $derived([
 		{
@@ -376,6 +422,26 @@
 							columns={holdingsColumns}
 							data={portfolioData?.coinHoldings || []}
 							onRowClick={(holding) => goto(`/coin/${holding.symbol}`)}
+						/>
+					</Card.Content>
+				</Card.Root>
+			{/if}
+
+			{#if portfolioData?.stockHoldings?.length || portfolioData?.orderCash}
+				<Card.Root class="mt-8">
+					<Card.Header>
+						<Card.Title>Your stocks</Card.Title>
+						<Card.Description>
+							Cash in buy orders: {formatValue(portfolioData?.orderCash ?? 0)}
+						</Card.Description>
+					</Card.Header>
+					<Card.Content>
+						<DataTable
+							columns={stocksColumns}
+							data={portfolioData?.stockHoldings ?? []}
+							onRowClick={(s) => goto(`/companies/${s.symbol}`)}
+							emptyTitle="No shares"
+							emptyDescription="You don't own any company shares."
 						/>
 					</Card.Content>
 				</Card.Root>

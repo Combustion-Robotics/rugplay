@@ -23,17 +23,7 @@ export async function POST({ params, request }) {
 	const symbol = params.symbol.toUpperCase();
 
 	const result = await db.transaction(async (tx) => {
-		// lock order: user, then company (same as the coin trade API)
-		const [userData] = await tx
-			.select({ baseCurrencyBalance: user.baseCurrencyBalance })
-			.from(user)
-			.where(eq(user.id, userId))
-			.for('update')
-			.limit(1);
-		if (!userData) {
-			throw error(404, 'User not found');
-		}
-
+		// lock order: company, then user (same as the order book, see lib/server/orderbook.ts)
 		const [c] = await tx
 			.select({
 				id: company.id,
@@ -51,6 +41,16 @@ export async function POST({ params, request }) {
 			.limit(1);
 		if (!c) {
 			throw error(404, 'Company not found');
+		}
+
+		const [userData] = await tx
+			.select({ baseCurrencyBalance: user.baseCurrencyBalance })
+			.from(user)
+			.where(eq(user.id, userId))
+			.for('update')
+			.limit(1);
+		if (!userData) {
+			throw error(404, 'User not found');
 		}
 
 		if (c.founderId === userId) {
@@ -88,7 +88,8 @@ export async function POST({ params, request }) {
 			.set({
 				roundSharesSold: sql`${company.roundSharesSold} + ${shares}`,
 				sharesOutstanding: sql`${company.sharesOutstanding} + ${shares}`,
-				treasuryCash: sql`${company.treasuryCash} + ${costStr}::numeric`
+				treasuryCash: sql`${company.treasuryCash} + ${costStr}::numeric`,
+				raisedCash: sql`${company.raisedCash} + ${costStr}::numeric`
 			})
 			.where(eq(company.id, c.id));
 

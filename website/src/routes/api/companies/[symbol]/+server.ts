@@ -67,6 +67,7 @@ export async function GET({ params }) {
 			...c,
 			sharePrice: Number(c.sharePrice),
 			treasuryCash: Number(c.treasuryCash),
+			raisedCash: Number(c.raisedCash),
 			founderUsername: row.founderUsername,
 			founderName: row.founderName,
 			founderImage: row.founderImage

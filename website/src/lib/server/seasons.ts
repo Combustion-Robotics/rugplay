@@ -26,6 +26,21 @@ const realizableValueExpr = sql`
 		  AND CAST(c.pool_coin_amount AS NUMERIC) > 0
 		  AND CAST(c.pool_base_currency_amount AS NUMERIC) > 0
 	), 0)
+	+ COALESCE((
+		SELECT SUM(o.shares * o.price) FROM stock_order o
+		WHERE o.user_id = u.id AND o.side = 'BUY'
+	), 0)
+	+ COALESCE((
+		-- what the shares fetch if sold into other players' bids right now, best bid first
+		SELECT SUM(LEAST(b.shares, h.shares - (b.cum - b.shares)) * b.price) * ${1 - SWAP_FEE_RATE}
+		FROM company_holding h
+		CROSS JOIN LATERAL (
+			SELECT o.shares, o.price, SUM(o.shares) OVER (ORDER BY o.price DESC, o.id) AS cum
+			FROM stock_order o
+			WHERE o.company_id = h.company_id AND o.side = 'BUY' AND o.user_id <> h.user_id
+		) b
+		WHERE h.user_id = u.id AND b.cum - b.shares < h.shares
+	), 0)
 `;
 
 export async function getActiveSeason() {
