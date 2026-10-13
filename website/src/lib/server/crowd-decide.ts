@@ -227,7 +227,8 @@ const money = (n: number) =>
 // prices need cents and sub-cent coin prices; money() would round $1.23 to $1
 const usd = (n: number) => '$' + n.toLocaleString('en-US', { maximumSignificantDigits: 4 });
 const pct = (x: number) => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
-const clean = (s: string, max: number) => s.replace(/\s+/g, ' ').replace(/"/g, "'").slice(0, max); // player text: one line, no quotes
+const clean = (s: string, max: number) =>
+	s.replace(/\s+/g, ' ').replace(/"/g, "'").replace(/[<>]/g, '').slice(0, max); // player text: one line, no quotes or <|chat-template|> tokens
 const hoursPerReport = COMPANY_QUARTER_MS / 3_600_000;
 const promiseText = (c: 'PROFIT' | 'REVENUE_UP') => (c === 'PROFIT' ? 'a profit' : 'more revenue');
 const timeAgo = (ms: number) =>

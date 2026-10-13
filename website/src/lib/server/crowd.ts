@@ -72,6 +72,7 @@ const CROWD_TAKE_SLIP = 0.03; // takes never pay more than 3% past the last pric
 const CROWD_QUOTE_SHARE = 0.01; // quote size, share of pool
 const CROWD_ROUND_STEP = 0.02; // of round shares per tick
 const CROWD_ROUND_MAX_CASH = 0.05; // of start cash in one company's round
+const CROWD_POSITION_CAP = 0.01; // max share of a bot's start cash held in one stock or coin; stops founders farming the crowd
 const CROWD_MIN_ORDER = 1; // $
 const CROWD_MAX_COINS = 20;
 const CROWD_COIN_MIN_LIQUIDITY = 1_000;
@@ -480,7 +481,11 @@ async function tradeStock(
 		pool * CROWD_ACTIVITY_RATE[a] * (1 - m.hold) * (m.buy - m.sell) * jitter(),
 		CROWD_MAX_TICK_FLOW * s.mcap
 	);
-	if (flow > 0) flow = Math.min(flow, s.cash * CROWD_MAX_CASH_PER_TICK);
+	// dollars of this stock the bot may still buy before hitting its position cap
+	const room = (x: { owned: number; price: number }) =>
+		Math.max(0, CROWD_POSITION_CAP * CROWD_START_CASH[a] - x.owned * x.price);
+	if (flow > 0) flow = Math.min(flow, s.cash * CROWD_MAX_CASH_PER_TICK, room(s));
+	else if (flow < 0) flow = -Math.min(-flow, s.owned * s.price);
 	m.flow = Math.round(flow * 100) / 100;
 	if (Math.abs(flow) >= CROWD_MIN_ORDER) {
 		const side = flow > 0 ? 'BUY' : 'SELL';
@@ -503,7 +508,7 @@ async function tradeStock(
 	const size = CROWD_QUOTE_SHARE * pool;
 	const bid = q.price * (1 - spread);
 	const ask = q.price * (1 + spread);
-	const bidShares = Math.floor(Math.min(size, q.cash * CROWD_MAX_CASH_PER_TICK) / bid);
+	const bidShares = Math.floor(Math.min(size, q.cash * CROWD_MAX_CASH_PER_TICK, room(q)) / bid);
 	const askShares = Math.min(Math.floor(size / ask), q.owned);
 	if (
 		bidShares >= 1 &&
@@ -603,7 +608,11 @@ async function tradeCoin(
 	);
 	flow =
 		flow > 0
-			? Math.min(flow, Number(s.cash) * CROWD_MAX_CASH_PER_TICK)
+			? Math.min(
+					flow,
+					Number(s.cash) * CROWD_MAX_CASH_PER_TICK,
+					Math.max(0, coinPool * CROWD_COIN_POOL_SPLIT[a] - held * price) // the admin pool is a real budget
+				)
 			: -Math.min(-flow, held * price);
 	m.flow = Math.round(flow * 100) / 100;
 	if (Math.abs(flow) < CROWD_MIN_ORDER) return;
@@ -714,14 +723,20 @@ async function run(force: boolean): Promise<Summary> {
 	const playerTrade = sql`NOT (COALESCE(${inArray(stockTrade.buyerId, botIds)}, false) AND COALESCE(${inArray(stockTrade.sellerId, botIds)}, false))`;
 	const trending = new Map<number, number>();
 	const publicIds = new Set(companies.filter((c) => c.status === 'PUBLIC').map((c) => c.id));
-	if (claimed.some((r) => r.market === 'STOCK')) {
+	if (publicIds.size && claimed.some((r) => r.market === 'STOCK')) {
 		const rows = await db
 			.select({ id: stockTrade.companyId })
 			.from(stockTrade)
-			.where(and(gt(stockTrade.createdAt, new Date(Date.now() - 86_400_000)), playerTrade))
+			.where(
+				and(
+					inArray(stockTrade.companyId, [...publicIds]),
+					gt(stockTrade.createdAt, new Date(Date.now() - 86_400_000)),
+					playerTrade
+				)
+			)
 			.groupBy(stockTrade.companyId)
 			.orderBy(desc(sql`SUM(${stockTrade.price} * ${stockTrade.shares})`));
-		rows.filter((r) => publicIds.has(r.id)).forEach((r, i) => trending.set(r.id, i + 1));
+		rows.forEach((r, i) => trending.set(r.id, i + 1));
 	}
 
 	// build items and decide who re-evaluates
@@ -737,6 +752,7 @@ async function run(force: boolean): Promise<Summary> {
 		mood: Mood;
 		due: Set<Archetype>;
 		evaluated: boolean;
+		postponed: boolean; // a decision was skipped: keep the trigger for next tick
 	};
 	const items: Item[] = [];
 	for (const row of claimed) {
@@ -758,7 +774,8 @@ async function run(force: boolean): Promise<Summary> {
 				latestAnnouncementId,
 				mood: { ...row.mood },
 				due: new Set(),
-				evaluated: false
+				evaluated: false,
+				postponed: false
 			};
 			if (c.status === 'PRIVATE') archetypes = ['RETAIL', 'FUND'];
 		} else {
@@ -773,7 +790,8 @@ async function run(force: boolean): Promise<Summary> {
 				latestAnnouncementId: 0,
 				mood: { ...row.mood },
 				due: new Set(),
-				evaluated: false
+				evaluated: false,
+				postponed: false
 			};
 		}
 		const c = item.company;
@@ -839,6 +857,7 @@ async function run(force: boolean): Promise<Summary> {
 			const d = await decide(a, it.facts);
 			if (!d) {
 				out.evals.postponed++;
+				it.postponed = true;
 				continue;
 			}
 			out.evals[d.source]++;
@@ -907,9 +926,9 @@ async function run(force: boolean): Promise<Summary> {
 			.update(crowdAsset)
 			.set({
 				mood: it.mood,
-				lastQuarter: it.latestQuarter,
 				lastAnnouncementId: Math.max(it.row.lastAnnouncementId, it.latestAnnouncementId),
-				...(it.evaluated
+				...(it.postponed ? {} : { lastQuarter: it.latestQuarter }),
+				...(it.evaluated && !it.postponed
 					? { lastEvalPrice: it.facts.price.toFixed(8), lastEvalAt: new Date(now) }
 					: {})
 			})
