@@ -103,7 +103,7 @@ Balances, trades, pools and order books are the core of the game. Bugs here brea
 ## Migrations
 
 - Change `schema.ts`, then generate a migration; never edit applied migrations.
-- **Known issue:** `drizzle/meta/_journal.json` does not list `0006_mention_notifications.sql` and `0007_user_blocks.sql` (duplicate number prefixes), so `db:migrate` skips them. Check this before adding new migrations.
+- Every `.sql` file in `website/drizzle/` must have an entry in `meta/_journal.json` and a matching snapshot, or `db:migrate` skips it. `drizzle-kit generate` handles this; if you write SQL by hand, add both.
 
 ## Git
 
