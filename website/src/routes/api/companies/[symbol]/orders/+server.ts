@@ -46,7 +46,7 @@ export async function GET({ params, request }) {
 
 	const level = (side: 'BUY' | 'SELL') =>
 		db
-			.select({ price: stockOrder.price, shares: sql<number>`SUM(${stockOrder.shares})::int` })
+			.select({ price: stockOrder.price, shares: sql`SUM(${stockOrder.shares})`.mapWith(Number) })
 			.from(stockOrder)
 			.where(and(eq(stockOrder.companyId, c.id), eq(stockOrder.side, side)))
 			.groupBy(stockOrder.price)

@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { predictionQuestion, predictionBet, user, accountDeletionRequest, session, account, promoCodeRedemption, userPortfolio, commentLike, comment, transaction, coin } from '$lib/server/db/schema';
+import { predictionQuestion, predictionBet, user, accountDeletionRequest, session, account, promoCodeRedemption, userPortfolio, commentLike, comment, transaction, coin, company } from '$lib/server/db/schema';
 import { eq, and, lte, isNull, sql, asc } from 'drizzle-orm';
 import { resolveQuestion, getRugplayData } from '$lib/server/ai';
 import { createNotification } from '$lib/server/notification';
@@ -240,6 +240,9 @@ export async function processAccountDeletions() {
             try {
                 await db.transaction(async (tx) => {
                     const userId = request.userId;
+
+                    // lock order is company -> user everywhere
+                    await tx.select({ id: company.id }).from(company).where(eq(company.founderId, userId)).orderBy(asc(company.id)).for('update');
 
                     await tx.update(transaction)
                         .set({ userId: null })

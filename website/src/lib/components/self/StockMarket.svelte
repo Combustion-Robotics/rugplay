@@ -22,6 +22,8 @@
 		formatTimeUntil
 	} from '$lib/utils';
 
+	const px = (p: number) => '$' + p.toFixed(6).replace(/\.?0+$/, '');
+
 	type Level = { price: number; shares: number };
 	type Market = {
 		lastPrice: number;
@@ -65,6 +67,7 @@
 	let priceInput = $state('');
 	let submitting = $state(false);
 	let shouldSignIn = $state(false);
+	let cancelling = $state<number | null>(null);
 
 	async function load() {
 		try {
@@ -144,7 +147,7 @@
 			haptic.trigger('success');
 			if (result.resting > 0) {
 				toast.success(
-					`Order placed: ${side === 'BUY' ? 'buy' : 'sell'} ${result.resting.toLocaleString()} at $${formatPrice(price)}`,
+					`Order placed: ${side === 'BUY' ? 'buy' : 'sell'} ${result.resting.toLocaleString()} at ${px(price)}`,
 					{ description: result.filled > 0 ? filledText : undefined }
 				);
 			} else if (result.cancelled > 0) {
@@ -166,6 +169,7 @@
 	}
 
 	async function cancel(id: number) {
+		cancelling = id;
 		try {
 			const res = await fetch(`/api/companies/${company.symbol}/orders/${id}`, {
 				method: 'DELETE'
@@ -179,6 +183,7 @@
 			toast.error('Failed to cancel', { description: (e as Error).message });
 		}
 		await Promise.all([load(), fetchPortfolioSummary()]);
+		cancelling = null;
 	}
 </script>
 
@@ -326,7 +331,7 @@
 					<p class="text-muted-foreground text-xs font-medium">{col.title}</p>
 					{#each col.rows as r (r.price)}
 						<div class="flex justify-between gap-2 font-mono">
-							<span class={col.tone}>{formatPrice(r.price)}</span>
+							<span class={col.tone}>{px(r.price)}</span>
 							<span>{formatQuantity(r.shares)}</span>
 						</div>
 					{:else}
@@ -371,9 +376,14 @@
 							>
 								{o.side === 'BUY' ? 'Buy' : 'Sell'}
 							</Badge>
-							<span class="font-mono">{formatQuantity(o.shares)} at ${formatPrice(o.price)}</span>
+							<span class="font-mono">{formatQuantity(o.shares)} at {px(o.price)}</span>
 						</span>
-						<Button variant="outline" size="sm" onclick={() => cancel(o.id)}>Cancel</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={cancelling === o.id}
+							onclick={() => cancel(o.id)}>Cancel</Button
+						>
 					</div>
 				{:else}
 					<p class="text-muted-foreground text-xs">No open orders</p>
