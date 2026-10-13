@@ -1,5 +1,12 @@
+import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { company, companyEarnings, companyHolding, sectorCondition } from '$lib/server/db/schema';
+import {
+	company,
+	companyEarnings,
+	companyHolding,
+	sectorCondition,
+	user
+} from '$lib/server/db/schema';
 import { and, desc, eq, gt, lte, ne, sql } from 'drizzle-orm';
 import {
 	COMPANY_QUARTER_MS,
@@ -156,4 +163,89 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 	}
 	if (closed > 0) console.log(`📊 Closed ${closed} company quarters`);
 	return closed;
+}
+
+// the invest route and the AI crowd both call this; lock order: company, then user (see orderbook.ts)
+export async function investInRound(userId: number, symbol: string, shares: number) {
+	return db.transaction(async (tx) => {
+		// lock order: company, then user (same as the order book, see lib/server/orderbook.ts)
+		const [c] = await tx
+			.select({
+				id: company.id,
+				founderId: company.founderId,
+				status: company.status,
+				sharePrice: company.sharePrice,
+				roundShares: company.roundShares,
+				roundSharesSold: company.roundSharesSold,
+				roundEndsAt: company.roundEndsAt,
+				cost: sql<string>`${company.sharePrice} * ${shares}` // exact numeric math
+			})
+			.from(company)
+			.where(eq(company.symbol, symbol))
+			.for('update')
+			.limit(1);
+		if (!c) {
+			throw error(404, 'Company not found');
+		}
+
+		const [userData] = await tx
+			.select({ baseCurrencyBalance: user.baseCurrencyBalance })
+			.from(user)
+			.where(eq(user.id, userId))
+			.for('update')
+			.limit(1);
+		if (!userData) {
+			throw error(404, 'User not found');
+		}
+
+		if (c.founderId === userId) {
+			throw error(400, "You can't invest in your own company");
+		}
+
+		const left = c.roundShares - c.roundSharesSold;
+		if (c.status !== 'PRIVATE' || new Date() >= c.roundEndsAt || left <= 0) {
+			throw error(400, 'This funding round is closed');
+		}
+		if (shares > left) {
+			throw error(400, `Only ${left} shares left in this round`);
+		}
+
+		const costStr = c.cost;
+		const cost = Number(costStr);
+		const balance = Number(userData.baseCurrencyBalance);
+		if (balance < cost) {
+			throw error(
+				400,
+				`Insufficient funds. You need $${cost.toFixed(2)} but only have $${balance.toFixed(2)}.`
+			);
+		}
+
+		await tx
+			.update(user)
+			.set({
+				baseCurrencyBalance: sql`${user.baseCurrencyBalance} - ${costStr}::numeric`,
+				updatedAt: new Date()
+			})
+			.where(eq(user.id, userId));
+
+		await tx
+			.update(company)
+			.set({
+				roundSharesSold: sql`${company.roundSharesSold} + ${shares}`,
+				sharesOutstanding: sql`${company.sharesOutstanding} + ${shares}`,
+				treasuryCash: sql`${company.treasuryCash} + ${costStr}::numeric`,
+				raisedCash: sql`${company.raisedCash} + ${costStr}::numeric`
+			})
+			.where(eq(company.id, c.id));
+
+		await tx
+			.insert(companyHolding)
+			.values({ userId, companyId: c.id, shares })
+			.onConflictDoUpdate({
+				target: [companyHolding.userId, companyHolding.companyId],
+				set: { shares: sql`${companyHolding.shares} + ${shares}` }
+			});
+
+		return { cost, newBalance: balance - cost };
+	});
 }

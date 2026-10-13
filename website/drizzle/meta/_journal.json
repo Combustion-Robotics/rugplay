@@ -113,6 +113,13 @@
       "when": 1791920205990,
       "tag": "0015_stock_market",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791921320573,
+      "tag": "0016_ai_crowd",
+      "breakpoints": true
     }
   ]
 }

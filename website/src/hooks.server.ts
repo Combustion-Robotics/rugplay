@@ -2,6 +2,7 @@ import { auth } from "$lib/auth";
 import { resolveExpiredQuestions, processAccountDeletions, cleanupExpiredSessions } from "$lib/server/job";
 import { rolloverSeasons } from "$lib/server/seasons";
 import { closeCompanyQuarters } from "$lib/server/companies";
+import { runCrowd, CROWD_RUN_MS } from "$lib/server/crowd";
 import { svelteKitHandler } from "better-auth/svelte-kit";
 import { redis } from "$lib/server/redis";
 import { building } from '$app/environment';
@@ -72,6 +73,7 @@ async function initializeScheduler() {
                         clearInterval(renewInterval);
                         clearInterval(schedulerInterval);
                         clearInterval(minesCleanupInterval);
+                        clearInterval(crowdInterval);
                         console.log('Lost scheduler lock, stopping...');
                     }
                 } catch (error) {
@@ -99,11 +101,16 @@ async function initializeScheduler() {
                 towerCleanupInactiveGames().catch(console.error);
             }, 60 * 1000);
 
+            const crowdInterval = setInterval(() => {
+                runCrowd().catch(console.error);
+            }, CROWD_RUN_MS);
+
             // Cleanup on process exit
             const cleanup = async () => {
                 clearInterval(renewInterval);
                 clearInterval(schedulerInterval);
                 clearInterval(minesCleanupInterval);
+                clearInterval(crowdInterval);
                 const currentValue = await redis.get(lockKey);
                 if (currentValue === lockValue) {
                     await redis.del(lockKey);

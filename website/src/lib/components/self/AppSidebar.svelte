@@ -538,6 +538,16 @@
 										<HugeiconsIcon icon={ChampionIcon} class="text-primary" />
 										Season settings
 									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										onclick={() => {
+											goto('/admin/crowd');
+											setOpenMobile(false);
+										}}
+										class="text-primary hover:text-primary!"
+									>
+										<HugeiconsIcon icon={Activity01Icon} class="text-primary" />
+										AI crowd
+									</DropdownMenu.Item>
 								</DropdownMenu.Group>
 							{/if}
 

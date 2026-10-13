@@ -32,10 +32,11 @@ export async function GET({ params }) {
                 arcadeLosses: true,
                 nameColor: true,
                 founderBadge: true,
+                isBot: true,
             }
         });
 
-        if (!userProfile) {
+        if (!userProfile || userProfile.isBot) {
             throw error(404, 'User not found');
         }
 

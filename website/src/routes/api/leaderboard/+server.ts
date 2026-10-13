@@ -32,7 +32,7 @@ async function getLeaderboardData() {
             })
             .from(transaction)
             .innerJoin(user, eq(transaction.userId, user.id))
-            .where(gte(transaction.timestamp, twentyFourHoursAgo))
+            .where(and(gte(transaction.timestamp, twentyFourHoursAgo), eq(user.isBot, false)))
             .groupBy(user.id, user.username, user.name, user.image, user.nameColor, user.founderBadge)
             .orderBy(desc(sql`SUM(CASE WHEN ${transaction.type} = 'SELL' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END) - SUM(CASE WHEN ${transaction.type} = 'BUY' THEN CAST(${transaction.totalBaseCurrencyAmount} AS NUMERIC) ELSE 0 END)`))
             .limit(10);
@@ -52,7 +52,7 @@ async function getLeaderboardData() {
             })
             .from(transaction)
             .innerJoin(user, eq(transaction.userId, user.id))
-            .where(gte(transaction.timestamp, twentyFourHoursAgo));
+            .where(and(gte(transaction.timestamp, twentyFourHoursAgo), eq(user.isBot, false)));
 
         const userNetCalculations = new Map();
         for (const tx of userTransactions) {
@@ -127,7 +127,7 @@ async function getLeaderboardData() {
             }
         }
 
-        const richestUsers = db.select().from(user)
+        const richestUsers = db.select().from(user).where(eq(user.isBot, false))
             .orderBy(desc(user.baseCurrencyBalance))
             .limit(10)
             .as('richest_users');
@@ -162,6 +162,7 @@ async function getLeaderboardData() {
                 .from(user)
                 .leftJoin(userPortfolio, eq(userPortfolio.userId, user.id))
                 .leftJoin(coin, eq(coin.id, userPortfolio.coinId))
+                .where(eq(user.isBot, false))
                 .groupBy(user.id, user.username, user.name, user.image, user.nameColor, user.founderBadge, user.baseCurrencyBalance)
                 .orderBy(desc(sql`CAST(${user.baseCurrencyBalance} AS NUMERIC) + COALESCE(SUM(CAST(${userPortfolio.quantity} AS NUMERIC) * CAST(${coin.currentPrice} AS NUMERIC)), 0)`))
                 .limit(10)
@@ -236,12 +237,12 @@ async function getSearchedUsers(query: string, limit = 9, offset = 0) {
             .leftJoin(userPortfolio, eq(userPortfolio.userId, user.id))
             .leftJoin(coin, eq(coin.id, userPortfolio.coinId))
             .groupBy(user.id, user.name, user.username, user.image, user.nameColor, user.founderBadge, user.bio, user.baseCurrencyBalance)
-            .where(ilike(user.username, `%${query}%`))
+            .where(and(ilike(user.username, `%${query}%`), eq(user.isBot, false)))
             .orderBy(desc(user.username))
             .limit(limit)
             .offset(offset);
 
-        const total = await db.select({ count: count() }).from(user).where(ilike(user.username, `%${query}%`)).limit(1);
+        const total = await db.select({ count: count() }).from(user).where(and(ilike(user.username, `%${query}%`), eq(user.isBot, false))).limit(1);
 
         return {
             results,

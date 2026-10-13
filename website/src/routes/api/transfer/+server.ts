@@ -46,9 +46,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
         const afterCommit: Array<() => Promise<unknown>> = [];
         const response = await db.transaction(async (tx) => {
-            const [recipient] = await tx.select({ id: user.id }).from(user)
+            const [recipient] = await tx.select({ id: user.id, isBot: user.isBot }).from(user)
                 .where(eq(user.username, recipientUsername)).limit(1);
-            if (!recipient) throw error(404, 'Recipient not found');
+            if (!recipient || recipient.isBot) throw error(404, 'Recipient not found');
 
             const participants = await tx.select({
                 id: user.id, username: user.username, baseCurrencyBalance: user.baseCurrencyBalance

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, decimal, serial, varchar, integer, primaryKey, pgEnum, index, unique, check, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, decimal, serial, varchar, integer, primaryKey, pgEnum, index, unique, check, customType, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { COMPANY_SECTORS, COMPANY_SPENDING_LEVELS } from '../../data/constants';
 
@@ -12,6 +12,8 @@ export const companySectorEnum = pgEnum('company_sector', COMPANY_SECTORS);
 export const companyStatusEnum = pgEnum('company_status', ['PRIVATE', 'PUBLIC', 'BANKRUPT']);
 export const companySpendingEnum = pgEnum('company_spending', COMPANY_SPENDING_LEVELS);
 export const stockOrderSideEnum = pgEnum('stock_order_side', ['BUY', 'SELL']);
+export const crowdMarketEnum = pgEnum('crowd_market', ['STOCK', 'COIN']);
+export const crowdArchetypeEnum = pgEnum('crowd_archetype', ['RETAIL', 'FUND', 'TRADER']);
 
 export const user = pgTable("user", {
 	id: serial("id").primaryKey(),
@@ -62,6 +64,7 @@ export const user = pgTable("user", {
 	nameColor: text("name_color"),
 	founderBadge: boolean("founder_badge").notNull().default(false),
 	disableMentions: boolean("disable_mentions").notNull().default(false),
+	isBot: boolean("is_bot").notNull().default(false), // AI crowd account: no login, hidden from leaderboards
 }, (table) => {
 	return {
 		usernameIdx: index("user_username_idx").on(table.username),
@@ -538,4 +541,55 @@ export const stockTrade = pgTable("stock_trade", {
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
 	companyCreatedAtIdx: index("stock_trade_company_id_created_at_idx").on(table.companyId, table.createdAt),
+}));
+
+export const crowdSettings = pgTable("crowd_settings", {
+	id: integer("id").primaryKey().default(1),
+	enabled: boolean("enabled").notNull().default(true),
+	coinsEnabled: boolean("coins_enabled").notNull().default(false),
+	coinPool: decimal("coin_pool", { precision: 30, scale: 8 }).notNull().default("100000.00000000"),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	singleRow: check("crowd_settings_single_row", sql`id = 1`),
+}));
+
+// one archetype's view of one market; Phase 5 reads this for the sentiment bar and "explain the move"
+export type CrowdMood = {
+	buy: number; sell: number; hold: number; // smoothed, what the crowd trades on
+	rawBuy: number; rawSell: number; rawHold: number; // latest decision
+	reason: string; source: 'llm' | 'heuristic';
+	evaluatedAt: string; nextEvalAt: string; // ISO
+	flow: number; // last tick in $: + buying, - selling
+};
+
+export const crowdAsset = pgTable("crowd_asset", {
+	id: serial("id").primaryKey(),
+	market: crowdMarketEnum("market").notNull(),
+	assetId: integer("asset_id").notNull(), // company.id or coin.id (no FK: points at two tables; rows are pruned each run)
+	nextTickAt: timestamp("next_tick_at", { withTimezone: true }).notNull().defaultNow(),
+	lastEvalAt: timestamp("last_eval_at", { withTimezone: true }).notNull().defaultNow(),
+	lastEvalPrice: decimal("last_eval_price", { precision: 30, scale: 8 }),
+	lastQuarter: integer("last_quarter").notNull().default(0), // newest earnings report the crowd has seen
+	mood: jsonb("mood").$type<Partial<Record<'RETAIL' | 'FUND' | 'TRADER', CrowdMood>>>().notNull().default({}),
+}, (table) => ({
+	marketAssetUnique: unique("crowd_asset_market_asset_unique").on(table.market, table.assetId),
+	nextTickAtIdx: index("crowd_asset_next_tick_at_idx").on(table.nextTickAt),
+}));
+
+export const crowdDecision = pgTable("crowd_decision", {
+	id: serial("id").primaryKey(),
+	market: crowdMarketEnum("market").notNull(),
+	assetId: integer("asset_id").notNull(),
+	symbol: varchar("symbol", { length: 10 }).notNull(),
+	archetype: crowdArchetypeEnum("archetype").notNull(),
+	source: varchar("source", { length: 10 }).notNull(), // 'llm' | 'heuristic'
+	model: varchar("model", { length: 100 }), // null for heuristic
+	context: text("context").notNull(), // exact user prompt; the system prompt is fixed per archetype in crowd-decide.ts
+	pBuy: decimal("p_buy", { precision: 5, scale: 4 }).notNull(),
+	pSell: decimal("p_sell", { precision: 5, scale: 4 }).notNull(),
+	pHold: decimal("p_hold", { precision: 5, scale: 4 }).notNull(),
+	latencyMs: integer("latency_ms"),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	createdAtIdx: index("crowd_decision_created_at_idx").on(table.createdAt),
 }));
