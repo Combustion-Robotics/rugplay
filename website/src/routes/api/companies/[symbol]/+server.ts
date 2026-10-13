@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import { auth } from '$lib/auth';
 import {
 	company,
+	companyAnnouncement,
 	companyEarnings,
 	companyHolding,
 	sectorCondition,
@@ -11,6 +12,7 @@ import {
 import { eq, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { COMPANY_SPENDING_LEVELS } from '$lib/data/constants';
+import { getCredibility } from '$lib/server/companies';
 
 const SpendingSchema = z.object({ spendingLevel: z.enum(COMPANY_SPENDING_LEVELS) });
 
@@ -34,7 +36,7 @@ export async function GET({ params }) {
 	}
 	const c = row.company;
 
-	const [holderRows, reports, [sector]] = await Promise.all([
+	const [holderRows, reports, [sector], announcements, founderCredibility] = await Promise.all([
 		db
 			.select({
 				userId: user.id,
@@ -59,7 +61,20 @@ export async function GET({ params }) {
 			.select({ multiplier: sectorCondition.multiplier })
 			.from(sectorCondition)
 			.where(eq(sectorCondition.sector, c.sector))
-			.limit(1)
+			.limit(1),
+		db
+			.select({
+				id: companyAnnouncement.id,
+				text: companyAnnouncement.text,
+				claim: companyAnnouncement.claim,
+				claimResult: companyAnnouncement.claimResult,
+				createdAt: companyAnnouncement.createdAt
+			})
+			.from(companyAnnouncement)
+			.where(eq(companyAnnouncement.companyId, c.id))
+			.orderBy(desc(companyAnnouncement.id))
+			.limit(10),
+		c.founderId ? getCredibility(c.founderId) : null
 	]);
 
 	return json({
@@ -86,7 +101,9 @@ export async function GET({ params }) {
 		holders: holderRows.map((h) => ({
 			...h,
 			percentage: c.sharesOutstanding > 0 ? (h.shares / c.sharesOutstanding) * 100 : 0
-		}))
+		})),
+		announcements,
+		founderCredibility
 	});
 }
 

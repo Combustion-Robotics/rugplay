@@ -120,6 +120,13 @@
       "when": 1791921320573,
       "tag": "0016_ai_crowd",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791922056835,
+      "tag": "0017_announcements",
+      "breakpoints": true
     }
   ]
 }

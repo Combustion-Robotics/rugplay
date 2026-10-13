@@ -53,6 +53,16 @@ export type Facts = {
 	ageDays: number;
 	buzz: number;
 	comments: string[];
+	// founder announcements (stocks; [] for coins), newest first, ≤ 6
+	news: {
+		text: string;
+		claim: 'PROFIT' | 'REVENUE_UP' | null;
+		claimResult: boolean | null;
+		ageMs: number;
+	}[];
+	credibility: number; // founder's promise record; 1/0/0 when unknown
+	kept: number;
+	broken: number;
 };
 export type Decision = {
 	probs: Probs;
@@ -71,6 +81,17 @@ const headlineReport = (f: Facts) => f.reports.find((r) => r.ageMs >= CROWD_RETA
 const freshReport = (f: Facts) =>
 	f.reports[0] && f.reports[0].ageMs < 3_600_000 ? f.reports[0] : undefined;
 const sign = (r?: { profit: number }) => (r ? (r.profit > 0 ? 1 : -1) : 0);
+const NEWS_MAX_AGE_MS = COMPANY_QUARTER_MS; // older founder news is forgotten
+const believe = (f: Facts) => 2 * f.credibility - 1; // 1 = trusted, 0 = ignored, < 0 = the news backfires
+const heardNews = (f: Facts) =>
+	f.news.find((n) => n.ageMs >= CROWD_RETAIL_LAG_MS && n.ageMs < NEWS_MAX_AGE_MS); // retail hears late
+const freshNews = (f: Facts) => f.news.find((n) => n.ageMs < 3_600_000);
+const openPromise = (f: Facts) => f.news.find((n) => n.claim && n.claimResult === null);
+const newsFactor = (hit: unknown, f: Facts, w: number, up: string, down: string): Factor => [
+	hit ? believe(f) * w : 0,
+	up,
+	down
+];
 
 function factors(a: Archetype, f: Facts): Factor[] {
 	const sector: Factor = [(f.sectorMultiplier - 1) * 0.8, 'Strong sector', 'Weak sector'];
@@ -80,7 +101,14 @@ function factors(a: Archetype, f: Facts): Factor[] {
 			return [
 				[0.1, 'New and exciting', ''],
 				[t(f.round.soldPct / 50) * 0.6, 'Others are investing', ''],
-				sector
+				sector,
+				newsFactor(
+					heardNews(f),
+					f,
+					0.4,
+					'The founder shared good news',
+					'Nobody believes this founder'
+				)
 			];
 		return [
 			[t(Math.log(FUND_REF_VALUATION / f.round.valuation) / 2) * 0.6, 'Fair price', 'Too pricey'],
@@ -97,7 +125,14 @@ function factors(a: Archetype, f: Facts): Factor[] {
 			],
 			[sign(headlineReport(f)) * 0.45, 'Good news', 'Bad news'],
 			[t(f.buzz / 5) * 0.3, 'People are hyped', ''],
-			[f.change1h < -0.1 ? -0.4 : 0, '', 'Panic: the price is crashing']
+			[f.change1h < -0.1 ? -0.4 : 0, '', 'Panic: the price is crashing'],
+			newsFactor(
+				heardNews(f),
+				f,
+				heardNews(f)?.claim ? 0.5 : 0.3,
+				'The founder shared good news',
+				'Nobody believes this founder'
+			)
 		];
 	if (a === 'TRADER')
 		return [
@@ -108,7 +143,14 @@ function factors(a: Archetype, f: Facts): Factor[] {
 				'More sellers than buyers'
 			],
 			[sign(freshReport(f)) * 0.4, 'Fresh good news', 'Fresh bad news'],
-			[f.change24h > 0.5 ? -0.3 : 0, '', 'Taking profits after a big run']
+			[f.change24h > 0.5 ? -0.3 : 0, '', 'Taking profits after a big run'],
+			newsFactor(
+				freshNews(f),
+				f,
+				0.3,
+				'Fresh news from the founder',
+				'The founder keeps breaking promises'
+			)
 		];
 	// FUND
 	if (f.market === 'COIN')
@@ -135,7 +177,14 @@ function factors(a: Archetype, f: Facts): Factor[] {
 				],
 		[f.reports.length ? (f.reports[0].profit > 0 ? 0.3 : -0.3) : 0, 'Made a profit', 'Lost money'],
 		[runway === null ? 0 : runway < 3 ? -0.6 : runway < 10 ? -0.2 : 0, '', 'Cash is running out'],
-		sector
+		sector,
+		newsFactor(
+			openPromise(f),
+			f,
+			0.1,
+			'The founder promised results',
+			'The founder broke promises before'
+		)
 	];
 }
 
@@ -180,6 +229,26 @@ const usd = (n: number) => '$' + n.toLocaleString('en-US', { maximumSignificantD
 const pct = (x: number) => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
 const clean = (s: string, max: number) => s.replace(/\s+/g, ' ').replace(/"/g, "'").slice(0, max); // player text: one line, no quotes
 const hoursPerReport = COMPANY_QUARTER_MS / 3_600_000;
+const promiseText = (c: 'PROFIT' | 'REVENUE_UP') => (c === 'PROFIT' ? 'a profit' : 'more revenue');
+const timeAgo = (ms: number) =>
+	ms < 7_200_000
+		? `${Math.round(ms / 60_000)} minutes ago`
+		: `${Math.round(ms / 3_600_000)} hours ago`;
+const trust = (f: Facts) =>
+	f.kept + f.broken
+		? `The founder kept ${f.kept} of ${f.kept + f.broken} past promises.`
+		: 'The founder has no checked promises yet.';
+// retail: what it has heard from the founder (after its lag)
+const heardLines = (f: Facts) => {
+	const n = heardNews(f);
+	return n
+		? [
+				`Founder news (${timeAgo(n.ageMs)}): "${clean(n.text, 200)}"` +
+					(n.claim ? ` Promise: ${promiseText(n.claim)} next report.` : ''),
+				trust(f)
+			]
+		: [];
+};
 
 export function renderPrompt(a: Archetype, f: Facts): string {
 	const name = clean(f.name, 40);
@@ -202,6 +271,7 @@ export function renderPrompt(a: Archetype, f: Facts): string {
 						`Stock: ${f.symbol} (${name})${sectorShort}`,
 						`Not on the market yet. Funding round: ${Math.round(r.soldPct)}% sold, ${left}`,
 						...pitch('Pitch', 200),
+						...heardLines(f),
 						question
 					]
 				: [
@@ -220,7 +290,8 @@ export function renderPrompt(a: Archetype, f: Facts): string {
 			f.trendingRank !== null ? `Trending: #${f.trendingRank} of ${f.trendingOf}` : 'Trending: no',
 			f.market === 'STOCK'
 				? `Headline: ${news ? `${f.symbol} ${news.profit > 0 ? 'made a profit' : 'lost money'}` : 'no news'}`
-				: `Chat today: ${f.buzz} people.${shown ? ` Latest: ${shown}` : ''}`
+				: `Chat today: ${f.buzz} people.${shown ? ` Latest: ${shown}` : ''}`,
+			...heardLines(f)
 		];
 	} else if (a === 'FUND' && f.market === 'COIN') {
 		lines = [
@@ -258,6 +329,8 @@ export function renderPrompt(a: Archetype, f: Facts): string {
 				: []),
 			...pitch('Pitch from the founder (may exaggerate)', 300)
 		];
+		const p = openPromise(f);
+		if (p) lines.push(`Founder promise for the next report: ${promiseText(p.claim!)}. ${trust(f)}`);
 	} else {
 		const news = freshReport(f);
 		lines = [
@@ -275,6 +348,8 @@ export function renderPrompt(a: Archetype, f: Facts): string {
 					? `Fresh news: ${f.symbol} ${news.profit > 0 ? `made a profit of ${money(news.profit)}` : `lost ${money(-news.profit)}`}${ago}`
 					: 'Fresh news: none'
 			);
+			const n = freshNews(f);
+			if (n) lines.push(`Founder news ${timeAgo(n.ageMs)}: "${clean(n.text, 150)}". ${trust(f)}`);
 		}
 	}
 	lines.push('Answer BUY, SELL or HOLD.');

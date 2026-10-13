@@ -2,12 +2,13 @@ import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import {
 	company,
+	companyAnnouncement,
 	companyEarnings,
 	companyHolding,
 	sectorCondition,
 	user
 } from '$lib/server/db/schema';
-import { and, desc, eq, gt, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
 import {
 	COMPANY_QUARTER_MS,
 	COMPANY_SECTORS,
@@ -19,6 +20,21 @@ import {
 } from '$lib/data/constants';
 import { createNotification } from '$lib/server/notification';
 import { cancelAllOrders } from '$lib/server/orderbook';
+
+const CREDIBILITY_PRIOR = 2; // a new founder starts at 100%; a broken promise costs more than a kept one earns back
+
+// per founder, across all their companies; the company page and the AI crowd both read it
+export async function getCredibility(userId: number) {
+	const [r] = await db
+		.select({
+			kept: sql<number>`COUNT(*) FILTER (WHERE ${companyAnnouncement.claimResult})::int`,
+			broken: sql<number>`COUNT(*) FILTER (WHERE NOT ${companyAnnouncement.claimResult})::int`,
+			pending: sql<number>`COUNT(*) FILTER (WHERE ${companyAnnouncement.claim} IS NOT NULL AND ${companyAnnouncement.claimResult} IS NULL)::int`
+		})
+		.from(companyAnnouncement)
+		.where(eq(companyAnnouncement.authorId, userId));
+	return { ...r, score: (r.kept + CREDIBILITY_PRIOR) / (r.kept + r.broken + CREDIBILITY_PRIOR) };
+}
 
 export function computeQuarter(
 	raised: number,
@@ -107,7 +123,7 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 				const isBankrupt = cashAfter <= 0;
 
 				const [last] = await tx
-					.select({ quarter: companyEarnings.quarter })
+					.select({ quarter: companyEarnings.quarter, revenue: companyEarnings.revenue })
 					.from(companyEarnings)
 					.where(eq(companyEarnings.companyId, id))
 					.orderBy(desc(companyEarnings.quarter))
@@ -122,6 +138,23 @@ export async function closeCompanyQuarters(force = false): Promise<number> {
 					profit,
 					cashAfter: cashAfter.toFixed(8)
 				});
+				// promises made before this report are checked now; credibility counts these rows
+				const kept = {
+					PROFIT: Number(profit) > 0,
+					REVENUE_UP: last ? Number(r.revenue.toFixed(8)) > Number(last.revenue) : false
+				};
+				await tx
+					.update(companyAnnouncement)
+					.set({
+						claimResult: sql`CASE ${companyAnnouncement.claim} WHEN 'PROFIT' THEN ${kept.PROFIT}::boolean ELSE ${kept.REVENUE_UP}::boolean END`
+					})
+					.where(
+						and(
+							eq(companyAnnouncement.companyId, id),
+							isNotNull(companyAnnouncement.claim),
+							isNull(companyAnnouncement.claimResult)
+						)
+					);
 				if (isBankrupt) await cancelAllOrders(tx, id);
 				await tx
 					.update(company)

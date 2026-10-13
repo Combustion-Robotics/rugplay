@@ -11,6 +11,8 @@
 	import SEO from '$lib/components/self/SEO.svelte';
 	import SignInConfirmDialog from '$lib/components/self/SignInConfirmDialog.svelte';
 	import StockMarket from '$lib/components/self/StockMarket.svelte';
+	import CompanyAnnouncements from '$lib/components/self/CompanyAnnouncements.svelte';
+	import CrowdInsights from '$lib/components/self/CrowdInsights.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { Loading03Icon } from '@hugeicons/core-free-icons';
 	import { goto } from '$app/navigation';
@@ -33,12 +35,16 @@
 	let holders = $state(data.holders);
 	let reports = $state(data.reports);
 	let sectorMultiplier = $state(data.sectorMultiplier);
+	let announcements = $state(data.announcements);
+	let founderCredibility = $state(data.founderCredibility);
 
 	$effect(() => {
 		company = data.company;
 		holders = data.holders;
 		reports = data.reports;
 		sectorMultiplier = data.sectorMultiplier;
+		announcements = data.announcements;
+		founderCredibility = data.founderCredibility;
 	});
 
 	let sharesInput = $state('');
@@ -59,6 +65,8 @@
 				holders = result.holders;
 				reports = result.reports;
 				sectorMultiplier = result.sectorMultiplier;
+				announcements = result.announcements;
+				founderCredibility = result.founderCredibility;
 			}
 		} catch (e) {
 			console.error('Failed to refresh company', e);
@@ -254,6 +262,19 @@
 	{/if}
 
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<CompanyAnnouncements
+			symbol={company.symbol}
+			{announcements}
+			credibility={founderCredibility}
+			canPost={isFounder && !isBankrupt}
+			canPromiseRevenue={reports.length > 0}
+			onPosted={refresh}
+			class={isBankrupt ? 'lg:col-span-3' : 'lg:col-span-2'}
+		/>
+		{#if !isBankrupt}
+			<CrowdInsights symbol={company.symbol} isPublic={company.status === 'PUBLIC'} />
+		{/if}
+
 		<Card.Root class="lg:col-span-2">
 			<Card.Header>
 				<Card.Title>Pitch</Card.Title>

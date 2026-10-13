@@ -33,6 +33,12 @@ const RATE_RULES: Array<{
         windowSecs: 60
     },
     {
+        match: (p, m) => m === 'POST' && p.endsWith('/announcements'),
+        key: 'announce',
+        limit: 5,
+        windowSecs: 60
+    },
+    {
         match: (p, m) => p.includes('/comments') && m === 'POST',
         key: 'comments',
         limit: 5,

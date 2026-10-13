@@ -14,6 +14,7 @@ export const companySpendingEnum = pgEnum('company_spending', COMPANY_SPENDING_L
 export const stockOrderSideEnum = pgEnum('stock_order_side', ['BUY', 'SELL']);
 export const crowdMarketEnum = pgEnum('crowd_market', ['STOCK', 'COIN']);
 export const crowdArchetypeEnum = pgEnum('crowd_archetype', ['RETAIL', 'FUND', 'TRADER']);
+export const announcementClaimEnum = pgEnum('announcement_claim', ['PROFIT', 'REVENUE_UP']);
 
 export const user = pgTable("user", {
 	id: serial("id").primaryKey(),
@@ -570,6 +571,7 @@ export const crowdAsset = pgTable("crowd_asset", {
 	lastEvalAt: timestamp("last_eval_at", { withTimezone: true }).notNull().defaultNow(),
 	lastEvalPrice: decimal("last_eval_price", { precision: 30, scale: 8 }),
 	lastQuarter: integer("last_quarter").notNull().default(0), // newest earnings report the crowd has seen
+	lastAnnouncementId: integer("last_announcement_id").notNull().default(0), // newest founder announcement the crowd has seen
 	mood: jsonb("mood").$type<Partial<Record<'RETAIL' | 'FUND' | 'TRADER', CrowdMood>>>().notNull().default({}),
 }, (table) => ({
 	marketAssetUnique: unique("crowd_asset_market_asset_unique").on(table.market, table.assetId),
@@ -588,8 +590,23 @@ export const crowdDecision = pgTable("crowd_decision", {
 	pBuy: decimal("p_buy", { precision: 5, scale: 4 }).notNull(),
 	pSell: decimal("p_sell", { precision: 5, scale: 4 }).notNull(),
 	pHold: decimal("p_hold", { precision: 5, scale: 4 }).notNull(),
+	reason: varchar("reason", { length: 100 }), // one-line why (rules); "explain the move" shows it
 	latencyMs: integer("latency_ms"),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
 	createdAtIdx: index("crowd_decision_created_at_idx").on(table.createdAt),
+	assetCreatedAtIdx: index("crowd_decision_asset_id_created_at_idx").on(table.assetId, table.createdAt),
+}));
+
+export const companyAnnouncement = pgTable("company_announcement", {
+	id: serial("id").primaryKey(),
+	companyId: integer("company_id").notNull().references(() => company.id, { onDelete: "cascade" }),
+	authorId: integer("author_id").references(() => user.id, { onDelete: "set null" }), // the founder; credibility is counted per author
+	text: varchar("text", { length: 200 }).notNull(),
+	claim: announcementClaimEnum("claim"), // optional promise, checked at the next earnings report
+	claimResult: boolean("claim_result"), // null = no claim or not checked yet
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	companyIdIdx: index("company_announcement_company_id_idx").on(table.companyId, table.id),
+	authorIdIdx: index("company_announcement_author_id_idx").on(table.authorId),
 }));

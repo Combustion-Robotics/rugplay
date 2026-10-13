@@ -7,6 +7,7 @@ import {
 	coin,
 	comment,
 	company,
+	companyAnnouncement,
 	companyEarnings,
 	crowdAsset,
 	crowdDecision,
@@ -36,7 +37,7 @@ import {
 	sql
 } from 'drizzle-orm';
 import { cancelOrder, placeOrder } from '$lib/server/orderbook';
-import { investInRound } from '$lib/server/companies';
+import { getCredibility, investInRound } from '$lib/server/companies';
 import { executeCoinTrade } from '$lib/server/amm';
 import {
 	ARCHETYPES,
@@ -167,6 +168,7 @@ const liveCompanies = () =>
 			id: company.id,
 			symbol: company.symbol,
 			name: company.name,
+			founderId: company.founderId,
 			sector: company.sector,
 			pitch: company.pitch,
 			status: company.status,
@@ -232,7 +234,7 @@ async function stockFacts(c: LiveCompany, trending: Map<number, number>, trendin
 			.orderBy(desc(stockTrade.id))
 			.limit(1);
 	const value = sql`${stockTrade.price} * ${stockTrade.shares}`;
-	const [[ref1h], [ref24h], [stats], chartRows, [book], reportRows, [sectorRow]] =
+	const [[ref1h], [ref24h], [stats], chartRows, [book], reportRows, [sectorRow], newsRows, cred] =
 		await Promise.all([
 			lastPriceAt(hourAgo),
 			lastPriceAt(dayAgo),
@@ -269,7 +271,20 @@ async function stockFacts(c: LiveCompany, trending: Map<number, number>, trendin
 			db
 				.select({ multiplier: sectorCondition.multiplier })
 				.from(sectorCondition)
-				.where(eq(sectorCondition.sector, c.sector))
+				.where(eq(sectorCondition.sector, c.sector)),
+			db
+				.select({
+					id: companyAnnouncement.id,
+					text: companyAnnouncement.text,
+					claim: companyAnnouncement.claim,
+					claimResult: companyAnnouncement.claimResult,
+					createdAt: companyAnnouncement.createdAt
+				})
+				.from(companyAnnouncement)
+				.where(eq(companyAnnouncement.companyId, c.id))
+				.orderBy(desc(companyAnnouncement.id))
+				.limit(6),
+			c.founderId ? getCredibility(c.founderId) : null
 		]);
 
 	const price = Number(c.sharePrice);
@@ -323,9 +338,22 @@ async function stockFacts(c: LiveCompany, trending: Map<number, number>, trendin
 		liquidity: 0,
 		ageDays: 0,
 		buzz: 0,
-		comments: []
+		comments: [],
+		news: newsRows.map((n) => ({
+			text: n.text,
+			claim: n.claim,
+			claimResult: n.claimResult,
+			ageMs: now - n.createdAt.getTime()
+		})),
+		credibility: cred?.score ?? 1,
+		kept: cred?.kept ?? 0,
+		broken: cred?.broken ?? 0
 	};
-	return { facts, latestQuarter: reportRows[0]?.quarter ?? 0 };
+	return {
+		facts,
+		latestQuarter: reportRows[0]?.quarter ?? 0,
+		latestAnnouncementId: newsRows[0]?.id ?? 0
+	};
 }
 
 async function coinFacts(cn: LiveCoin, rank: number, of: number): Promise<Facts> {
@@ -402,7 +430,11 @@ async function coinFacts(cn: LiveCoin, rank: number, of: number): Promise<Facts>
 		liquidity: Number(cn.poolBaseCurrencyAmount),
 		ageDays: (now - cn.createdAt.getTime()) / 864e5,
 		buzz: Number(buzz.n),
-		comments: latest.map((r) => r.content)
+		comments: latest.map((r) => r.content),
+		news: [],
+		credibility: 1,
+		kept: 0,
+		broken: 0
 	};
 }
 
@@ -701,6 +733,7 @@ async function run(force: boolean): Promise<Summary> {
 		coin?: LiveCoin;
 		facts: Facts;
 		latestQuarter: number;
+		latestAnnouncementId: number;
 		mood: Mood;
 		due: Set<Archetype>;
 		evaluated: boolean;
@@ -712,12 +745,17 @@ async function run(force: boolean): Promise<Summary> {
 		if (row.market === 'STOCK') {
 			const c = companies.find((x) => x.id === row.assetId);
 			if (!c || (c.status === 'PRIVATE' && c.roundEndsAt.getTime() <= now)) continue; // waiting for IPO
-			const { facts, latestQuarter } = await stockFacts(c, trending, publicIds.size);
+			const { facts, latestQuarter, latestAnnouncementId } = await stockFacts(
+				c,
+				trending,
+				publicIds.size
+			);
 			item = {
 				row,
 				company: c,
 				facts,
 				latestQuarter,
+				latestAnnouncementId,
 				mood: { ...row.mood },
 				due: new Set(),
 				evaluated: false
@@ -732,6 +770,7 @@ async function run(force: boolean): Promise<Summary> {
 				coin: cn,
 				facts,
 				latestQuarter: 0,
+				latestAnnouncementId: 0,
 				mood: { ...row.mood },
 				due: new Set(),
 				evaluated: false
@@ -761,6 +800,18 @@ async function run(force: boolean): Promise<Summary> {
 			if (big) all = true;
 		}
 		const newReport = item.latestQuarter > row.lastQuarter;
+		if (item.latestAnnouncementId > row.lastAnnouncementId) {
+			// founder news: fund and trader look now, retail after its lag (so its facts already show the post);
+			// setting nextEvalAt (not just `due`) means a postponed decision retries next tick
+			const m = item.mood;
+			for (const a of ['FUND', 'TRADER'] as const)
+				if (m[a]) m[a] = { ...m[a]!, nextEvalAt: nowIso };
+			if (m.RETAIL) {
+				const later = now + CROWD_RETAIL_LAG_MS * (1 + Math.random() / 2);
+				if (Date.parse(m.RETAIL.nextEvalAt) > later)
+					m.RETAIL = { ...m.RETAIL, nextEvalAt: new Date(later).toISOString() };
+			}
+		}
 		for (const a of archetypes) {
 			const m = item.mood[a];
 			if (
@@ -816,6 +867,7 @@ async function run(force: boolean): Promise<Summary> {
 				pBuy: d.probs.buy.toFixed(4),
 				pSell: d.probs.sell.toFixed(4),
 				pHold: d.probs.hold.toFixed(4),
+				reason: d.reason,
 				latencyMs: d.latencyMs
 			});
 			it.evaluated = true;
@@ -856,6 +908,7 @@ async function run(force: boolean): Promise<Summary> {
 			.set({
 				mood: it.mood,
 				lastQuarter: it.latestQuarter,
+				lastAnnouncementId: Math.max(it.row.lastAnnouncementId, it.latestAnnouncementId),
 				...(it.evaluated
 					? { lastEvalPrice: it.facts.price.toFixed(8), lastEvalAt: new Date(now) }
 					: {})
