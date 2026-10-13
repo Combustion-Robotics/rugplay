@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp, boolean, decimal, serial, varchar, integer, primaryKey, pgEnum, index, unique, check, customType } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { COMPANY_SECTORS } from '../../data/constants';
 
 export const transactionTypeEnum = pgEnum('transaction_type', ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']);
 export const predictionMarketEnum = pgEnum('prediction_market_status', ['ACTIVE', 'RESOLVED', 'CANCELLED']);
@@ -7,6 +8,8 @@ export const notificationTypeEnum = pgEnum('notification_type', ['HOPIUM', 'SYST
 export const shopItemTypeEnum = pgEnum('shop_item_type', ['namecolor']);
 export const seasonStatusEnum = pgEnum('season_status', ['UPCOMING', 'ACTIVE', 'ENDED']);
 export const seasonTrophyTierEnum = pgEnum('season_trophy_tier', ['CHAMPION', 'RUNNER_UP', 'THIRD', 'TOP_10', 'TOP_100', 'PARTICIPANT']);
+export const companySectorEnum = pgEnum('company_sector', COMPANY_SECTORS);
+export const companyStatusEnum = pgEnum('company_status', ['PRIVATE', 'PUBLIC', 'BANKRUPT']);
 
 export const user = pgTable("user", {
 	id: serial("id").primaryKey(),
@@ -451,4 +454,34 @@ export const userBlock = pgTable("user_block", {
 	blockerIdIdx: index("user_block_blocker_id_idx").on(table.blockerId),
 	blockedIdIdx: index("user_block_blocked_id_idx").on(table.blockedId),
 	noSelfBlock: check("no_self_block", sql`blocker_id != blocked_id`),
+}));
+
+export const company = pgTable("company", {
+	id: serial("id").primaryKey(),
+	name: varchar("name", { length: 40 }).notNull(),
+	symbol: varchar("symbol", { length: 5 }).notNull().unique(),
+	sector: companySectorEnum("sector").notNull(),
+	pitch: varchar("pitch", { length: 1000 }).notNull(),
+	founderId: integer("founder_id").references(() => user.id, { onDelete: "set null" }),
+	status: companyStatusEnum("status").notNull().default("PRIVATE"),
+	sharePrice: decimal("share_price", { precision: 30, scale: 8 }).notNull(),
+	sharesOutstanding: integer("shares_outstanding").notNull(), // founder shares + round shares sold
+	roundShares: integer("round_shares").notNull(),
+	roundSharesSold: integer("round_shares_sold").notNull().default(0),
+	roundEndsAt: timestamp("round_ends_at", { withTimezone: true }).notNull(),
+	treasuryCash: decimal("treasury_cash", { precision: 30, scale: 8 }).notNull().default("0.00000000"),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	founderIdIdx: index("company_founder_id_idx").on(table.founderId),
+	createdAtIdx: index("company_created_at_idx").on(table.createdAt),
+	roundNotOverfilled: check("company_round_not_overfilled", sql`round_shares_sold <= round_shares`),
+}));
+
+export const companyHolding = pgTable("company_holding", {
+	userId: integer("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+	companyId: integer("company_id").notNull().references(() => company.id, { onDelete: "cascade" }),
+	shares: integer("shares").notNull(),
+}, (table) => ({
+	pk: primaryKey({ columns: [table.userId, table.companyId] }),
+	companySharesIdx: index("company_holding_company_id_shares_idx").on(table.companyId, table.shares.desc()),
 }));

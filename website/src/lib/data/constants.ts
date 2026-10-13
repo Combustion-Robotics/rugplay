@@ -26,3 +26,13 @@ export const CASH_TRANSFER_FEE_RATE = 0.01; // 1%
 
 // PROMO CODES
 export const MAX_PROMO_REWARD = 1_000_000;
+
+// COMPANIES
+export const COMPANY_CREATION_FEE = 1000; // burned
+export const COMPANY_TOTAL_SHARES = 1_000_000;
+export const COMPANY_MIN_VALUATION = 10_000; // $0.01/share
+export const COMPANY_MAX_VALUATION = 100_000_000; // $100/share
+export const COMPANY_MIN_OFFER_PERCENT = 5;
+export const COMPANY_MAX_OFFER_PERCENT = 50;
+export const COMPANY_ROUND_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
+export const COMPANY_SECTORS = ['Tech', 'Food', 'Games', 'Energy', 'Health', 'Retail'] as const;

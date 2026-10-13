@@ -25,7 +25,7 @@ const RATE_RULES: Array<{
         windowSecs: 5
     },
     {
-        match: (p) => p.endsWith('/trade'),
+        match: (p) => p.endsWith('/trade') || p.endsWith('/invest'),
         key: 'trade',
         limit: 20,
         windowSecs: 60

@@ -10,6 +10,7 @@
 		Sun01Icon,
 		Home03Icon,
 		Store01Icon,
+		Building03Icon,
 		Briefcase01Icon,
 		Coins02Icon,
 		ArrowUpDownIcon,
@@ -63,6 +64,7 @@
 		navMain: [
 			{ title: 'Home', url: '/', icon: Home03Icon },
 			{ title: 'Market', url: '/market', icon: Store01Icon },
+			{ title: 'Companies', url: '/companies', icon: Building03Icon },
 			{ title: 'Hopium', url: '/hopium', icon: ArrowUpDownIcon },
 			{ title: 'Arcade', url: '/arcade', icon: Joystick04Icon },
 			{ title: 'Leaderboard', url: '/leaderboard', icon: ChampionIcon },
