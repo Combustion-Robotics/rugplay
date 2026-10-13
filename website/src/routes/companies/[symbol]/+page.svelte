@@ -254,6 +254,10 @@
 									Invest
 								{/if}
 							</Button>
+							<p class="text-muted-foreground text-xs">
+								Invested money is locked until the company goes public and doesn't count in your
+								score.
+							</p>
 						</form>
 					{/if}
 				{/if}

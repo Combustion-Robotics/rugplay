@@ -42,7 +42,8 @@ export async function POST({ params, request }) {
 				sharePrice: company.sharePrice,
 				roundShares: company.roundShares,
 				roundSharesSold: company.roundSharesSold,
-				roundEndsAt: company.roundEndsAt
+				roundEndsAt: company.roundEndsAt,
+				cost: sql<string>`${company.sharePrice} * ${shares}` // exact numeric math
 			})
 			.from(company)
 			.where(eq(company.symbol, symbol))
@@ -64,7 +65,7 @@ export async function POST({ params, request }) {
 			throw error(400, `Only ${left} shares left in this round`);
 		}
 
-		const costStr = (Number(c.sharePrice) * shares).toFixed(8);
+		const costStr = c.cost;
 		const cost = Number(costStr);
 		const balance = Number(userData.baseCurrencyBalance);
 		if (balance < cost) {
