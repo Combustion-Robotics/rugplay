@@ -27,12 +27,10 @@ Rules:
 
 ### Use the ponytail skill
 
-Agents should use the [ponytail](https://github.com/DietrichGebert/ponytail) skill: before writing new code, check if it already exists in the codebase, the standard library or the platform, and write less code. Install in Claude Code:
+Agents should use the [ponytail](https://github.com/DietrichGebert/ponytail) skill (MIT, vendored in `.claude/skills/`): before writing new code, check if it already exists in the codebase, the standard library or the platform, and write less code.
 
-```
-/plugin marketplace add DietrichGebert/ponytail
-/plugin install ponytail@ponytail
-```
+- `.claude/skills/ponytail/SKILL.md`: use on every coding task (full level). Subagents: read this file first.
+- `.claude/skills/ponytail-review/SKILL.md`: use to review a change before committing.
 
 Never cut security, input validation, error handling or accessibility to save lines.
 
