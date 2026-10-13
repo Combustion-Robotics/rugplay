@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, boolean, decimal, serial, varchar, integer, primaryKey, pgEnum, index, unique, check, customType } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { COMPANY_SECTORS } from '../../data/constants';
+import { COMPANY_SECTORS, COMPANY_SPENDING_LEVELS } from '../../data/constants';
 
 export const transactionTypeEnum = pgEnum('transaction_type', ['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT']);
 export const predictionMarketEnum = pgEnum('prediction_market_status', ['ACTIVE', 'RESOLVED', 'CANCELLED']);
@@ -10,6 +10,7 @@ export const seasonStatusEnum = pgEnum('season_status', ['UPCOMING', 'ACTIVE', '
 export const seasonTrophyTierEnum = pgEnum('season_trophy_tier', ['CHAMPION', 'RUNNER_UP', 'THIRD', 'TOP_10', 'TOP_100', 'PARTICIPANT']);
 export const companySectorEnum = pgEnum('company_sector', COMPANY_SECTORS);
 export const companyStatusEnum = pgEnum('company_status', ['PRIVATE', 'PUBLIC', 'BANKRUPT']);
+export const companySpendingEnum = pgEnum('company_spending', COMPANY_SPENDING_LEVELS);
 
 export const user = pgTable("user", {
 	id: serial("id").primaryKey(),
@@ -470,6 +471,8 @@ export const company = pgTable("company", {
 	roundSharesSold: integer("round_shares_sold").notNull().default(0),
 	roundEndsAt: timestamp("round_ends_at", { withTimezone: true }).notNull(),
 	treasuryCash: decimal("treasury_cash", { precision: 30, scale: 8 }).notNull().default("0.00000000"),
+	spendingLevel: companySpendingEnum("spending_level").notNull().default("MEDIUM"),
+	nextQuarterAt: timestamp("next_quarter_at", { withTimezone: true }).notNull().defaultNow(),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
 	founderIdIdx: index("company_founder_id_idx").on(table.founderId),
@@ -485,3 +488,23 @@ export const companyHolding = pgTable("company_holding", {
 	pk: primaryKey({ columns: [table.userId, table.companyId] }),
 	companySharesIdx: index("company_holding_company_id_shares_idx").on(table.companyId, table.shares.desc()),
 }));
+
+export const companyEarnings = pgTable("company_earnings", {
+	companyId: integer("company_id").notNull().references(() => company.id, { onDelete: "cascade" }),
+	quarter: integer("quarter").notNull(),
+	spendingLevel: companySpendingEnum("spending_level").notNull(),
+	sectorMultiplier: decimal("sector_multiplier", { precision: 3, scale: 2 }).notNull(),
+	revenue: decimal("revenue", { precision: 30, scale: 8 }).notNull(),
+	spending: decimal("spending", { precision: 30, scale: 8 }).notNull(),
+	profit: decimal("profit", { precision: 30, scale: 8 }).notNull(),
+	cashAfter: decimal("cash_after", { precision: 30, scale: 8 }).notNull(), // can be negative on the bankrupt quarter
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+	pk: primaryKey({ columns: [table.companyId, table.quarter] }), // also blocks a double close of the same quarter
+}));
+
+export const sectorCondition = pgTable("sector_condition", {
+	sector: companySectorEnum("sector").primaryKey(),
+	multiplier: decimal("multiplier", { precision: 3, scale: 2 }).notNull().default("1.00"),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

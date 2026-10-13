@@ -7,7 +7,7 @@
 	import SEO from '$lib/components/self/SEO.svelte';
 	import { goto } from '$app/navigation';
 	import { COMPANY_TOTAL_SHARES } from '$lib/data/constants';
-	import { formatPrice, formatMarketCap, formatTimeUntil } from '$lib/utils';
+	import { formatPrice, formatMarketCap, formatTimeUntil, formatValue } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -27,6 +27,20 @@
 		<h1 class="text-2xl font-bold">Companies</h1>
 		<Button href="/companies/create">Found a company</Button>
 	</div>
+
+	{#if data.sectors.length}
+		<div class="mb-6 flex flex-wrap items-center gap-2 text-sm">
+			<span class="text-muted-foreground">Sector conditions:</span>
+			{#each data.sectors as s (s.sector)}
+				<Badge
+					variant="outline"
+					class={s.multiplier > 1 ? 'text-success' : s.multiplier < 1 ? 'text-destructive' : ''}
+				>
+					{s.sector} ×{s.multiplier.toFixed(2)}
+				</Badge>
+			{/each}
+		</div>
+	{/if}
 
 	{#if data.companies.length === 0}
 		<div class="text-muted-foreground py-24 text-center">
@@ -49,7 +63,12 @@
 									<p class="text-muted-foreground truncate text-sm">{c.symbol}</p>
 								</div>
 							</div>
-							<Badge variant="secondary" class="shrink-0 text-xs">{c.sector}</Badge>
+							<div class="flex shrink-0 flex-col items-end gap-1">
+								<Badge variant="secondary" class="text-xs">{c.sector}</Badge>
+								{#if c.status === 'BANKRUPT'}
+									<Badge variant="destructive" class="text-xs">Bankrupt</Badge>
+								{/if}
+							</div>
 						</div>
 					</Card.Header>
 
@@ -63,6 +82,10 @@
 								<span class="text-muted-foreground">Valuation</span>
 								<span class="font-mono">{formatMarketCap(c.sharePrice * COMPANY_TOTAL_SHARES)}</span
 								>
+							</div>
+							<div class="flex justify-between">
+								<span class="text-muted-foreground">Cash</span>
+								<span class="font-mono">{formatValue(c.treasuryCash)}</span>
 							</div>
 							<div class="space-y-1">
 								<Progress value={(c.roundSharesSold / c.roundShares) * 100} />

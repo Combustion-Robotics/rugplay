@@ -99,6 +99,13 @@
       "when": 1791918281676,
       "tag": "0013_companies",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791919155297,
+      "tag": "0014_company_earnings",
+      "breakpoints": true
     }
   ]
 }

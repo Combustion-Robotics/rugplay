@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { company, companyHolding, user } from '$lib/server/db/schema';
+import { company, companyHolding, sectorCondition, user } from '$lib/server/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { isNameAppropriate } from '$lib/server/moderation';
@@ -13,6 +13,7 @@ import {
 	COMPANY_MIN_OFFER_PERCENT,
 	COMPANY_MAX_OFFER_PERCENT,
 	COMPANY_ROUND_DURATION_MS,
+	COMPANY_QUARTER_MS,
 	COMPANY_SECTORS
 } from '$lib/data/constants';
 
@@ -43,31 +44,35 @@ const CreateCompanySchema = z.object({
 
 export async function GET() {
 	// shortcut: newest 100 only, add pagination like /api/market when the list grows
-	const rows = await db
-		.select({
-			symbol: company.symbol,
-			name: company.name,
-			sector: company.sector,
-			status: company.status,
-			sharePrice: company.sharePrice,
-			roundShares: company.roundShares,
-			roundSharesSold: company.roundSharesSold,
-			roundEndsAt: company.roundEndsAt,
-			treasuryCash: company.treasuryCash,
-			createdAt: company.createdAt,
-			founderUsername: user.username
-		})
-		.from(company)
-		.leftJoin(user, eq(user.id, company.founderId))
-		.orderBy(desc(company.createdAt))
-		.limit(100);
+	const [rows, sectors] = await Promise.all([
+		db
+			.select({
+				symbol: company.symbol,
+				name: company.name,
+				sector: company.sector,
+				status: company.status,
+				sharePrice: company.sharePrice,
+				roundShares: company.roundShares,
+				roundSharesSold: company.roundSharesSold,
+				roundEndsAt: company.roundEndsAt,
+				treasuryCash: company.treasuryCash,
+				createdAt: company.createdAt,
+				founderUsername: user.username
+			})
+			.from(company)
+			.leftJoin(user, eq(user.id, company.founderId))
+			.orderBy(desc(company.createdAt))
+			.limit(100),
+		db.select().from(sectorCondition).orderBy(sectorCondition.sector)
+	]);
 
 	return json({
 		companies: rows.map((c) => ({
 			...c,
 			sharePrice: Number(c.sharePrice),
 			treasuryCash: Number(c.treasuryCash)
-		}))
+		})),
+		sectors: sectors.map((s) => ({ sector: s.sector, multiplier: Number(s.multiplier) }))
 	});
 }
 
@@ -96,6 +101,8 @@ export async function POST({ request }) {
 	const roundShares = (COMPANY_TOTAL_SHARES * offerPercent) / 100;
 	const founderShares = COMPANY_TOTAL_SHARES - roundShares;
 	const sharePrice = (valuation / COMPANY_TOTAL_SHARES).toFixed(8);
+
+	const roundEndsAt = new Date(Date.now() + COMPANY_ROUND_DURATION_MS);
 
 	const created = await db.transaction(async (tx) => {
 		const [existing] = await tx
@@ -144,7 +151,8 @@ export async function POST({ request }) {
 				sharePrice,
 				sharesOutstanding: founderShares,
 				roundShares,
-				roundEndsAt: new Date(Date.now() + COMPANY_ROUND_DURATION_MS)
+				roundEndsAt,
+				nextQuarterAt: new Date(roundEndsAt.getTime() + COMPANY_QUARTER_MS)
 			})
 			.returning({ id: company.id, symbol: company.symbol });
 

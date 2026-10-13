@@ -5,6 +5,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Progress } from '$lib/components/ui/progress';
+	import * as Alert from '$lib/components/ui/alert';
 	import CoinIcon from '$lib/components/self/CoinIcon.svelte';
 	import DataTable from '$lib/components/self/DataTable.svelte';
 	import SEO from '$lib/components/self/SEO.svelte';
@@ -17,7 +18,7 @@
 	import { USER_DATA } from '$lib/stores/user-data';
 	import { PORTFOLIO_SUMMARY, fetchPortfolioSummary } from '$lib/stores/portfolio-data';
 	import { haptic } from '$lib/stores/haptics';
-	import { COMPANY_TOTAL_SHARES } from '$lib/data/constants';
+	import { COMPANY_TOTAL_SHARES, COMPANY_SPENDING, COMPANY_QUARTER_MS } from '$lib/data/constants';
 	import {
 		formatPrice,
 		formatValue,
@@ -29,10 +30,14 @@
 	let { data } = $props();
 	let company = $state(data.company);
 	let holders = $state(data.holders);
+	let reports = $state(data.reports);
+	let sectorMultiplier = $state(data.sectorMultiplier);
 
 	$effect(() => {
 		company = data.company;
 		holders = data.holders;
+		reports = data.reports;
+		sectorMultiplier = data.sectorMultiplier;
 	});
 
 	let sharesInput = $state('');
@@ -51,6 +56,8 @@
 				const result = await res.json();
 				company = result.company;
 				holders = result.holders;
+				reports = result.reports;
+				sectorMultiplier = result.sectorMultiplier;
 			}
 		} catch (e) {
 			console.error('Failed to refresh company', e);
@@ -62,6 +69,44 @@
 		company.status === 'PRIVATE' && new Date(company.roundEndsAt) > new Date() && left > 0
 	);
 	let isFounder = $derived($USER_DATA ? Number($USER_DATA.id) === company.founderId : false);
+	let isBankrupt = $derived(company.status === 'BANKRUPT');
+	let roundEnded = $derived(new Date(company.roundEndsAt) <= new Date());
+	let raised = $derived(company.roundSharesSold * company.sharePrice);
+	const budget = (l: keyof typeof COMPANY_SPENDING) => raised * COMPANY_SPENDING[l].rate;
+	const money = (v: number) => (v < 0 ? '-' : '') + formatValue(Math.abs(v));
+	const sign = (v: number) => (v >= 0 ? '+' : '') + money(v);
+	const tone = (v: number) => (v > 0 ? 'text-success' : v < 0 ? 'text-destructive' : '');
+	const LEVELS = {
+		LOW: { label: 'Low', hint: 'Safe. Small gains.' },
+		MEDIUM: { label: 'Medium', hint: 'Balanced.' },
+		HIGH: { label: 'High', hint: 'Win big or burn cash.' }
+	} as const;
+	type Level = keyof typeof LEVELS;
+	let level = $derived(company.spendingLevel as Level);
+	let isSaving = $state(false);
+
+	async function setSpending(next: Level) {
+		if (isSaving || next === level) return;
+		isSaving = true;
+		try {
+			const res = await fetch(`/api/companies/${company.symbol}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ spendingLevel: next })
+			});
+			const result = await res.json();
+			if (!res.ok) throw new Error(result.message || result.error || 'Failed to save');
+			company.spendingLevel = next;
+			haptic.trigger('success');
+			toast.success('Spending updated', { description: 'Applies at the next report.' });
+		} catch (e) {
+			haptic.trigger('error');
+			toast.error('Failed to update spending', { description: (e as Error).message });
+		} finally {
+			isSaving = false;
+		}
+	}
+
 	let balance = $derived($PORTFOLIO_SUMMARY?.baseCurrencyBalance ?? 0);
 
 	let shares = $derived(Number(sharesInput));
@@ -144,6 +189,25 @@
 			})
 		}
 	];
+
+	const reportColumns = [
+		{ key: 'quarter', label: 'Quarter', render: (v: number) => `Q${v}` },
+		{
+			key: 'spendingLevel',
+			label: 'Spending',
+			render: (v: Level) => ({ component: 'badge', variant: 'secondary', text: LEVELS[v].label })
+		},
+		{ key: 'sectorMultiplier', label: 'Sector', render: (v: number) => `×${v.toFixed(2)}` },
+		{ key: 'revenue', label: 'Revenue', class: 'font-mono', render: money },
+		{ key: 'spending', label: 'Spent', class: 'font-mono', render: money },
+		{
+			key: 'profit',
+			label: 'Profit',
+			class: 'font-mono',
+			render: (v: number) => ({ component: 'text', text: sign(v), class: tone(v) })
+		},
+		{ key: 'cashAfter', label: 'Cash', class: 'font-mono', render: money }
+	];
 </script>
 
 <SEO
@@ -170,8 +234,19 @@
 			</p>
 		</div>
 		<Badge variant="secondary">{company.sector}</Badge>
-		<Badge variant="outline">{company.status}</Badge>
+		{#if isBankrupt}
+			<Badge variant="destructive">Bankrupt</Badge>
+		{:else}
+			<Badge variant="outline">{company.status}</Badge>
+		{/if}
 	</div>
+
+	{#if isBankrupt}
+		<Alert.Root variant="destructive" class="mb-6">
+			<Alert.Title>Bankrupt</Alert.Title>
+			<Alert.Description>This company ran out of cash. Its shares are worth $0.</Alert.Description>
+		</Alert.Root>
+	{/if}
 
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<Card.Root class="lg:col-span-2">
@@ -259,6 +334,87 @@
 								score.
 							</p>
 						</form>
+					{/if}
+				{/if}
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root class="lg:col-span-2">
+			<Card.Header>
+				<Card.Title>Earnings</Card.Title>
+			</Card.Header>
+			<Card.Content class="space-y-4">
+				{#if reports.length}
+					<p class="text-sm">
+						<span class="font-semibold">Q{reports[0].quarter} report:</span>
+						Revenue {money(reports[0].revenue)} · Spending {money(reports[0].spending)} · Profit
+						<span class={tone(reports[0].profit)}>{sign(reports[0].profit)}</span>
+					</p>
+				{/if}
+				<DataTable
+					columns={reportColumns}
+					data={reports}
+					emptyTitle="No reports yet"
+					emptyDescription="The first report comes one quarter after the round ends."
+				/>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>Business</Card.Title>
+			</Card.Header>
+			<Card.Content class="space-y-4">
+				<p class="text-muted-foreground text-xs">
+					Every {COMPANY_QUARTER_MS / 3_600_000}h your company spends cash and earns revenue.
+				</p>
+				<div class="space-y-2 text-sm">
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">Cash</span>
+						<span class="font-mono">{money(company.treasuryCash)}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">Sector</span>
+						<span class="font-mono {tone(sectorMultiplier - 1)}">
+							{company.sector} ×{sectorMultiplier.toFixed(2)}
+						</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">Spending</span>
+						<span>{LEVELS[level].label}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">Next report</span>
+						<span>
+							{isBankrupt
+								? '—'
+								: !roundEnded
+									? 'When the round ends'
+									: `in ${formatTimeUntil(company.nextQuarterAt)}`}
+						</span>
+					</div>
+				</div>
+
+				{#if isFounder && !isBankrupt}
+					<div class="grid grid-cols-3 gap-2">
+						{#each Object.keys(LEVELS) as Level[] as l (l)}
+							<Button
+								variant={level === l ? 'default' : 'outline'}
+								disabled={isSaving}
+								aria-pressed={level === l}
+								onclick={() => setSpending(l)}
+							>
+								{LEVELS[l].label}
+							</Button>
+						{/each}
+					</div>
+					<p class="text-muted-foreground text-xs">
+						{LEVELS[level].hint} Spends {formatValue(budget(level))} per quarter.
+					</p>
+					{#if roundEnded && company.treasuryCash < budget(level)}
+						<p class="text-destructive text-xs">
+							Not enough cash for this level. If cash hits $0 you go bankrupt.
+						</p>
 					{/if}
 				{/if}
 			</Card.Content>

@@ -36,3 +36,15 @@ export const COMPANY_MIN_OFFER_PERCENT = 5;
 export const COMPANY_MAX_OFFER_PERCENT = 50;
 export const COMPANY_ROUND_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 export const COMPANY_SECTORS = ['Tech', 'Food', 'Games', 'Energy', 'Health', 'Retail'] as const;
+export const COMPANY_QUARTER_MS = 24 * 60 * 60 * 1000; // 1 quarter = 1 real day; no runtime admin settings exist, change here
+export const COMPANY_SPENDING_LEVELS = ['LOW', 'MEDIUM', 'HIGH'] as const;
+// per quarter: spending = money raised × rate; revenue = spending × sector multiplier × random luck in [luckMin, luckMax]
+export const COMPANY_SPENDING = {
+	LOW: { rate: 0.05, luckMin: 0.9, luckMax: 1.3 },
+	MEDIUM: { rate: 0.1, luckMin: 0.6, luckMax: 1.6 },
+	HIGH: { rate: 0.3, luckMin: 0, luckMax: 2.1 }
+} as const;
+export const SECTOR_MULTIPLIER_MIN = 0.5;
+export const SECTOR_MULTIPLIER_MAX = 1.5;
+export const SECTOR_DRIFT_STEP = 0.15; // max random move per quarter
+export const SECTOR_DRIFT_PULL = 0.1; // share of the gap to 1.00 closed each quarter
