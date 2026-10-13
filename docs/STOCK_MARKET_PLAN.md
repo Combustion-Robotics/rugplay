@@ -2,6 +2,17 @@
 
 Oct 13, 2026 · [Live doc](https://claude.ai/code/artifact/b32e11e4-5b2e-469a-9e8f-9d646251cf01)
 
+## Status
+
+v1 (all five Core items) is built on branch `claude/ecstatic-darwin-dsglqo`. Extra decisions made while building:
+
+- **IPO:** automatic when a funding round ends with at least one investor, at the round price.
+- **Trading:** order book with limit and market orders; 0.3% fee paid by the seller (burned); market orders only fill within 20% of the last price.
+- **Founder shares:** unlock linearly over 14 days after the round ends.
+- **Crowd:** 3 bot accounts (`crowd-retail`, `crowd-fund`, `crowd-trader`) with $5M / $20M / $2M start cash and no refill; each holds at most 1% of its start cash in one stock.
+- **Founder trust:** (kept + 2) / (kept + broken + 2) promises; one open promise per founder.
+- **Not playtested yet:** all numbers are guesses and will need tuning.
+
 ## Vision
 
 The fork adds a stock market with real-ish fundamentals next to Rugplay's existing crypto market, plus an AI-driven crowd that buys and sells like the mass of real traders.

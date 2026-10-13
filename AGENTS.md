@@ -103,6 +103,27 @@ Balances, trades, pools and order books are the core of the game. Bugs here brea
 - Change `schema.ts`, then generate a migration; never edit applied migrations.
 - Every `.sql` file in `website/drizzle/` must have an entry in `meta/_journal.json` and a matching snapshot, or `db:migrate` skips it. `drizzle-kit generate` handles this; if you write SQL by hand, add both.
 
+## Stock market code map
+
+| Area | Files |
+| --- | --- |
+| Companies, funding rounds, quarter close, IPO, credibility | `lib/server/companies.ts`, `routes/api/companies/**` |
+| Order book (the only way to trade stocks) | `lib/server/orderbook.ts` (`placeOrder`, `cancelOrder`) |
+| AI crowd | `lib/server/crowd.ts` (tick), `lib/server/crowd-decide.ts` (`decide()`, prompts, rules fallback) |
+| Pages | `routes/companies/**`, `lib/components/self/{StockMarket,StockChart,CompanyAnnouncements,CrowdInsights}.svelte`, `routes/admin/crowd` |
+
+- **Lock order (company world):** company row first, then user rows by ascending id. Every new money transaction must follow it.
+- **Crowd LLM:** `CROWD_LLM_URL` points at a llama.cpp server; empty = rules only. The crowd must stay local (no OpenRouter).
+- **Admin test triggers:** `POST /api/admin/companies/quarter` `{"force":true}` (close a quarter, IPO due rounds) and `POST /api/admin/crowd/tick` `{"force":true}` (run the crowd now).
+
+## Testing locally
+
+There are no automated tests. Verify money changes end to end:
+
+- Postgres 16 + Redis locally. **Known issue:** the SQL migrations lag `schema.ts` (e.g. `user.gems`), so build a test DB with `CREATE EXTENSION pg_trgm;` + `npx drizzle-kit push --force`, not `db:migrate`.
+- Fake a logged-in user: insert a `session` row and send the cookie `better-auth.session_token=<token>.<base64 HMAC-SHA256(token, PRIVATE_BETTER_AUTH_SECRET)>` (URL-encoded).
+- After money changes, check invariants in SQL: no negative balances, shares conserved (`company.shares_outstanding` = sum of holdings), book never crossed, and total money (balances + buy-order escrow + treasuries + coin pools) changes only by burned fees.
+
 ## Git
 
 - Small commits with clear messages. Don't push to `main` unless asked.

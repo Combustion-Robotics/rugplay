@@ -2,7 +2,7 @@
 
 A fork of [Rugplay](https://github.com/outpoot/rugplay), the fake crypto simulator, that adds a **stock market**, **player-founded startups** and an **AI crowd** that trades like the mass of real people.
 
-> 🚧 **Work in progress.** The stock market features are being planned. See the full plan: [docs/STOCK_MARKET_PLAN.md](docs/STOCK_MARKET_PLAN.md)
+> 🚧 **Early version.** The stock market v1 is built but not playtested yet; numbers will change. Plan and decisions: [docs/STOCK_MARKET_PLAN.md](docs/STOCK_MARKET_PLAN.md)
 
 ## About
 
@@ -10,7 +10,7 @@ Rugplay lets you experience crypto trading, liquidity pools and "rug pulls" with
 
 The goal is to be **fun and educational** (mainly for teens/students) without lectures: bubbles, crashes and hype-vs-fundamentals happen on their own, and you learn by playing (and getting burned).
 
-## Planned features
+## Stock market features
 
 - 🏢 **Found a startup:** pick a sector, write a pitch, set a valuation and raise money from players and the AI crowd
 - 📈 **IPO + stock market:** grow big enough and go public on an order book
@@ -127,6 +127,10 @@ Before you begin, make sure you have the following installed:
 
    # --- Optional: OpenRouter (for AI features) ---
    OPENROUTER_API_KEY=your_openrouter_api_key
+
+   # --- Optional: local LLM for the AI crowd (llama.cpp server) ---
+   CROWD_LLM_URL=http://localhost:8080   # leave empty to use the built-in rules
+   CROWD_LLM_MODEL=local
    ```
 
    **Notes:**
