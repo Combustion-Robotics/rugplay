@@ -36,7 +36,7 @@
 	} as const;
 
 	let insights = $state<Insights | null>(null);
-	let selected = $state(0);
+	let selectedTo = $state('');
 
 	async function load() {
 		try {
@@ -71,7 +71,7 @@
 		Object.values(mood).reduce<string>((a, m) => (m && m.evaluatedAt > a ? m.evaluatedAt : a), '')
 	);
 	let moves = $derived(insights?.moves ?? []);
-	let move = $derived(moves.length ? moves[Math.min(selected, moves.length - 1)] : null);
+	let move = $derived(moves.find((m) => m.to === selectedTo) ?? moves[0]);
 </script>
 
 <Card.Root>
@@ -117,8 +117,10 @@
 				</div>
 			{/each}
 			<p class="text-muted-foreground text-xs">Updated {formatTimeAgo(newest)}</p>
-		{:else}
+		{:else if insights}
 			<p class="text-muted-foreground text-sm">The AI crowd hasn't looked at this company yet.</p>
+		{:else}
+			<p class="text-muted-foreground text-sm">Loading...</p>
 		{/if}
 	</Card.Content>
 </Card.Root>
@@ -131,13 +133,12 @@
 		<Card.Content class="space-y-4">
 			{#if move}
 				<div class="flex flex-wrap gap-2">
-					{#each moves as m, i (m.to)}
-						{@const current = moves[Math.min(selected, moves.length - 1)] === m}
+					{#each moves as m (m.to)}
 						<Button
 							size="sm"
-							variant={current ? 'default' : 'outline'}
-							aria-pressed={current}
-							onclick={() => (selected = i)}
+							variant={move === m ? 'default' : 'outline'}
+							aria-pressed={move === m}
+							onclick={() => (selectedTo = m.to)}
 						>
 							{m.change > 0 ? '+' : '-'}{Math.abs(Math.round(m.change * 100))}% at {timeOf(m.to)}
 						</Button>
@@ -164,11 +165,13 @@
 				<p class="text-muted-foreground text-xs">
 					Built from trades, news and what the AI crowd was thinking at that time.
 				</p>
-			{:else}
+			{:else if insights}
 				<p class="text-sm">No big moves in the last 24 hours.</p>
 				<p class="text-muted-foreground text-xs">
 					A big move is when the price changes 10% or more within an hour.
 				</p>
+			{:else}
+				<p class="text-muted-foreground text-sm">Loading...</p>
 			{/if}
 		</Card.Content>
 	</Card.Root>

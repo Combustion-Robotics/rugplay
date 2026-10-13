@@ -48,7 +48,7 @@
 	let posting = $state(false);
 
 	let trimmed = $derived(text.replace(/\s+/g, ' ').trim());
-	let hasPending = $derived(announcements.some((a) => a.claim && a.claimResult === null));
+	let hasPending = $derived((credibility?.pending ?? 0) > 0);
 	let canSubmit = $derived(trimmed.length >= 5 && trimmed.length <= 200 && !posting);
 	let percent = $derived(credibility ? Math.round(credibility.score * 100) : 0);
 	let trustColor = $derived(

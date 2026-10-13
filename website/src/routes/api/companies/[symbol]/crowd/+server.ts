@@ -27,7 +27,11 @@ type Reason = {
 };
 
 const money = (n: number) =>
-	'$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+	'$' +
+	Math.abs(n).toLocaleString(
+		'en-US',
+		Math.abs(n) < 1 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 }
+	);
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
 // rule-made reasons from what is already stored; no LLM text

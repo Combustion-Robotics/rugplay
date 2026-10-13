@@ -1,7 +1,7 @@
 import { auth } from '$lib/auth';
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { company, companyAnnouncement, companyEarnings } from '$lib/server/db/schema';
+import { company, companyAnnouncement, companyEarnings, user } from '$lib/server/db/schema';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { isNameAppropriate } from '$lib/server/moderation';
@@ -47,6 +47,9 @@ export async function POST({ params, request }) {
 			.limit(1);
 		if (!locked || locked.status === 'BANKRUPT') throw error(400, 'This company is bankrupt');
 
+		// trust is per founder, so the promise check below must be serialized per user too
+		await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for('update');
+
 		const [last] = await tx
 			.select({ createdAt: companyAnnouncement.createdAt })
 			.from(companyAnnouncement)
@@ -62,13 +65,13 @@ export async function POST({ params, request }) {
 				.from(companyAnnouncement)
 				.where(
 					and(
-						eq(companyAnnouncement.companyId, c.id),
+						eq(companyAnnouncement.authorId, userId),
 						isNotNull(companyAnnouncement.claim),
 						isNull(companyAnnouncement.claimResult)
 					)
 				)
 				.limit(1);
-			if (pending) throw error(400, 'You already made a promise for the next report');
+			if (pending) throw error(400, 'You already have a promise waiting for a report');
 			if (claim === 'REVENUE_UP') {
 				const [report] = await tx
 					.select({ quarter: companyEarnings.quarter })

@@ -258,22 +258,26 @@
 	{/if}
 
 	{#if company.status === 'PUBLIC'}
-		<StockMarket {company} onTrade={refresh} />
+		{#key company.symbol}
+			<StockMarket {company} onTrade={refresh} />
+		{/key}
 	{/if}
 
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-		<CompanyAnnouncements
-			symbol={company.symbol}
-			{announcements}
-			credibility={founderCredibility}
-			canPost={isFounder && !isBankrupt}
-			canPromiseRevenue={reports.length > 0}
-			onPosted={refresh}
-			class={isBankrupt ? 'lg:col-span-3' : 'lg:col-span-2'}
-		/>
-		{#if !isBankrupt}
-			<CrowdInsights symbol={company.symbol} isPublic={company.status === 'PUBLIC'} />
-		{/if}
+		{#key company.symbol}
+			<CompanyAnnouncements
+				symbol={company.symbol}
+				{announcements}
+				credibility={founderCredibility}
+				canPost={isFounder && !isBankrupt}
+				canPromiseRevenue={reports.length > 0}
+				onPosted={refresh}
+				class={isBankrupt ? 'lg:col-span-3' : 'lg:col-span-2'}
+			/>
+			{#if !isBankrupt}
+				<CrowdInsights symbol={company.symbol} isPublic={company.status === 'PUBLIC'} />
+			{/if}
+		{/key}
 
 		<Card.Root class="lg:col-span-2">
 			<Card.Header>
