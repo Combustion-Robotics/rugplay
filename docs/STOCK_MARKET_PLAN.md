@@ -122,6 +122,49 @@ The main risk is a crowd that is either predictable (farmable) or runs away in a
 | Short selling | skip in v1; add later as a season feature once the order book works |
 | AI model | local only: small LLM + logprobs first, Laya later |
 
+## Real Market mode (planned)
+
+A second mode, similar to paper-trading apps like Best Brokers: trade real stocks and crypto at real prices with virtual money. There is no AI crowd and no order book; the real market is the counterparty.
+
+- **Separate wallet:** e.g. $100k virtual cash, with no transfers to or from Rugplay cash, so real-world knowledge can't farm the game economy.
+- **Ranked by % return:** weekly and monthly leagues plus friend leagues with invite codes, reusing the seasons code.
+- **Orders:** market orders first, then limit orders that fill when the real price crosses. No shorting or leverage in v1.
+- **Assets:** a curated list of ~100 popular US stocks and ETFs (SPY as the benchmark) plus the top ~20 cryptos.
+- **Market hours:** stocks only trade while the exchange is open; orders placed outside hours fill at the open. Crypto trades 24/7.
+
+### Real data
+
+| What | Options |
+| --- | --- |
+| Crypto, real-time | Binance or Coinbase public websockets (free) |
+| Stocks | Finnhub, Twelve Data, Polygon or Alpha Vantage (free tiers are limited, often 15 min delayed) |
+| News + company info | usually included with the stock provider |
+
+- The server fetches prices and caches them in Redis; players never call the provider directly.
+- Showing exchange prices publicly has licensing rules: check the provider's terms.
+- **Cheat risk:** with delayed prices a player could trade at a stale price they know is outdated. An order therefore fills at the next price update after it is placed, never at the price already on screen; use real-time data for execution where possible.
+
+### Educational angle
+
+- "Beat the market": your return vs simply holding SPY.
+- Real news next to the chart to explain daily moves.
+- The same few fundamentals as the fictional mode (P/E, market cap, sector), so players can compare a made-up company with a real one.
+
+### Build phases
+
+1. Data layer: provider adapter, asset list, price cache, chart history.
+2. Wallet, market orders, portfolio.
+3. Limit orders and market hours.
+4. Leagues and leaderboard.
+5. News, fundamentals, SPY benchmark.
+
+### Open questions
+
+- [ ] US stocks only, or European ones too? This decides the data provider.
+- [ ] Free data tier (delayed, limited) or a paid plan?
+- [ ] Do real-market league wins give anything in Rugplay (badge, cosmetics)?
+- [ ] Keep the separate wallet, or one shared balance?
+
 ## Later and cut
 
 Only v1 gets built first; the rest waits until the core loop proves fun.
