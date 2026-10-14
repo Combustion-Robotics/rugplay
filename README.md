@@ -2,7 +2,7 @@
 
 A fork of [Rugplay](https://github.com/outpoot/rugplay), the fake crypto simulator, that adds a **stock market**, **player-founded startups** and an **AI crowd** that trades like the mass of real people.
 
-> 🚧 **Early version.** The stock market v1 is built but not playtested yet; numbers will change. Plan and decisions: [docs/STOCK_MARKET_PLAN.md](docs/STOCK_MARKET_PLAN.md)
+> 🚧 **Early version.** Stock market v1 is built but not playtested yet, so numbers will change. Plan and decisions: [docs/STOCK_MARKET_PLAN.md](docs/STOCK_MARKET_PLAN.md)
 
 ## About
 
@@ -12,13 +12,17 @@ The goal is to be **fun and educational** (mainly for teens/students) without le
 
 ## Stock market features
 
-- 🏢 **Found a startup:** pick a sector, write a pitch, set a valuation and raise money from players and the AI crowd
-- 📈 **IPO + stock market:** grow big enough and go public on an order book
-- 📊 **Daily earnings:** every in-game "quarter" (1 real day) your company reports revenue and profit
-- 📣 **CEO announcements:** convince the market, but lies hurt your credibility
-- 🤖 **AI crowd:** three local AI agents (retail, fund, trader) see different info, and their buy/sell probabilities become the volume of thousands of "people"
-- 🌡️ **Sentiment bar + "explain the move":** see how each crowd feels and why the price moved
-- 🪙 **Crypto stays:** coins keep the AMM; the crowd can trade them too (admin-configurable)
+- 🏢 **Found a startup:** pick a sector, write a pitch, set a valuation and sell shares in a 3-day funding round
+- 📊 **Daily earnings:** every "quarter" (1 real day) your company spends cash and earns revenue based on your spending level, the sector and luck. Run out of cash and you go bankrupt
+- 📈 **IPO + order book:** when the round ends, the company goes public and its shares trade with limit and market orders. Founder shares unlock over 14 days
+- 📣 **Founder news:** post updates and promises ("profit next report"). Broken promises lower your trust score, and the crowd stops believing you
+- 🤖 **AI crowd:** three bots (retail, fund, trader) see different info and turn their buy/sell/hold odds into real trades. They run on a local LLM (llama.cpp) or built-in rules
+- 🌡️ **Crowd mood + "why did the price move?":** see what each crowd type thinks, and what caused big price moves
+- 🪙 **Crypto stays:** coins keep the AMM; admins can let the crowd trade them too (`/admin/crowd`)
+
+## Coming next: Real Market mode
+
+Trade real stocks and crypto at real prices with virtual money, compete in leagues ranked by % return, and try to beat simply holding the market (SPY). See the [plan](docs/STOCK_MARKET_PLAN.md#real-market-mode-planned).
 
 ## Original Rugplay features
 - 🪙 Create, buy and sell coins
